@@ -1,3 +1,21 @@
+/*
+    spasm - x86-64 assembler / JIT support library
+    Copyright (C) 2014  Tibor Djurica Potpara <tibor.djurica@ojdip.net>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #pragma once
 
 #include <cstdint>
@@ -161,7 +179,11 @@ public:
 
 };
 
-struct mod_rm_specifier {
+class mod_rm_specifier {
+private:
+	bool valid_;
+
+public:	
 	bool sib;
 
 	// Prefices 0x40 - 0x 4f
@@ -185,8 +207,17 @@ struct mod_rm_specifier {
 			| (rex_x ? 0x2 : 0x00)
 			| (rex_b ? 0x1 : 0x00);
 	}
+
+	operator bool() { return valid_; }
+
+	mod_rm_specifier(cpu_register reg, cpu_register rm);
+	mod_rm_specifier(cpu_register reg, sib_specifier rm);
 };
 
+/*
+	For now `instruction` is simply a vector with some added functionality (pushing arbitrarily-sized
+	data. 
+*/
 class instruction : public std::vector<uint8_t> {
 public:
 	template<typename T>
@@ -199,9 +230,7 @@ public:
 
 	void push_data(iterator whither, void* value, size_t size)
 	{
-		auto position = whither - begin();
-		insert(whither, size, 0x00);
-		std::memcpy(&(*this)[position], value, size);
+		insert(whither, static_cast<uint8_t*>(value), static_cast<uint8_t*>(value) + size);
 	}
 
 	void push_displacement(iterator whither, disp_size size, int32_t displacement)
@@ -222,7 +251,5 @@ public:
 };
 
 uint8_t get_reg_rm(cpu_register reg, cpu_register rm);
-bool direct(mod_rm_specifier& result, cpu_register reg, cpu_register rm);
-bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm);
 
 }

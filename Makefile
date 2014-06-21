@@ -1,3 +1,7 @@
+# Makefile based on:
+# https://github.com/mbcrawfo/GenericMakefile
+
+
 #### PROJECT SETTINGS ####
 # The name of the executable to be created
 BIN_NAME := spasm

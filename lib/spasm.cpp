@@ -1,3 +1,21 @@
+/*
+    spasm - x86-64 assembler / JIT support library
+    Copyright (C) 2014  Tibor Djurica Potpara <tibor.djurica@ojdip.net>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <sstream>
 #include <limits>
 
@@ -253,41 +271,42 @@ std::string sib_specifier::to_string()
 }
 
 
-bool direct(mod_rm_specifier& result, cpu_register reg, cpu_register rm)
+mod_rm_specifier::mod_rm_specifier(cpu_register reg, cpu_register rm)
+	: valid_(false)
 {
-	if (!reg.valid() || !rm.valid())
-		return false;
+	if (!reg.valid() || !rm.valid()) return;
 
 	// Actual value is the easy part...
-	result.value = 0xC0 | get_reg_rm(reg, rm);	// mod = 3
+	value = 0xC0 | get_reg_rm(reg, rm);	// mod = 3
 	
 	//...then come the prefices.
-	result.sib = false;
-	result.rex_x = false;
-	result.displacement_size = disp_size::d0;
+	sib = false;
+	rex_x = false;
+	displacement_size = disp_size::d0;
 	
-	result.address_override = false;
-	result.operand_size_override = (reg.type == register_type::r16)
+	address_override = false;
+	operand_size_override = (reg.type == register_type::r16)
 		&& (rm.type == register_type::r16);
 
-	result.rex_r = (reg.rex == rex_attributte::rex);
-	result.rex_b = (rm.rex == rex_attributte::rex);
+	rex_r = (reg.rex == rex_attributte::rex);
+	rex_b = (rm.rex == rex_attributte::rex);
 
-	result.rex_w = (reg.type == register_type::r64)
+	rex_w = (reg.type == register_type::r64)
 		|| (rm.type == register_type::r64);
 
-	result.rex = reg.always_rex() || rm.always_rex()
-		|| result.rex_r || result.rex_b || result.rex_w;
+	rex = reg.always_rex() || rm.always_rex()
+		|| rex_r || rex_b || rex_w;
 
-	if (result.rex && (reg.never_rex() || rm.never_rex()))
-		return false; //throw runtime_error("Cannot use an operand that requires a REX prefix.");
+	if (rex && (reg.never_rex() || rm.never_rex()))
+		return; //throw runtime_error("Cannot use an operand that requires a REX prefix.");
 
-	return true;
+	valid_ = true;
 }
 
-bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm)
+mod_rm_specifier::mod_rm_specifier(cpu_register reg, sib_specifier rm)
+	: valid_(false)
 {
-	result.sib = rm.needs_sib();
+	sib = rm.needs_sib();
 
 	const bool appropriate_set =
 		(rm.scaled.can_be_used_in_mem() || !rm.scaled.valid()) &&
@@ -295,37 +314,37 @@ bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm)
 		reg.valid();
 
 	if (!appropriate_set)
-		return false; //throw runtime_error("This register cannot be used for memory access.");
+		return; //throw runtime_error("This register cannot be used for memory access.");
 
 	if (rm.scaled == R::invalid && rm.offset == R::invalid)
 	{
 		// For now no displacement-only
-		return false;
+		return;
 	}
 
 	if (rm.offset == R::rip)
 	{
 		if (rm.scaled.valid() || rm.multiplier != 1)
-			return false; //throw runtime_error("RIP-relative addressing can be used with displacement only.");
+			return; //throw runtime_error("RIP-relative addressing can be used with displacement only.");
 
 		// RIP-relative can only have 32-bit displacement
-		result.displacement_size = disp_size::d32;
-		result.value = (reg.index() << 3) | 0x05;
+		displacement_size = disp_size::d32;
+		value = (reg.index() << 3) | 0x05;
 	}
-	else if (!result.sib)
+	else if (!sib)
 	{
-		result.displacement_size = rm.displacement_size();
+		displacement_size = rm.displacement_size();
 
-		if ((rm.offset.index() == 5) && (result.displacement_size == disp_size::d0))
-			result.displacement_size = disp_size::d8;		
+		if ((rm.offset.index() == 5) && (displacement_size == disp_size::d0))
+			displacement_size = disp_size::d8;		
 
-		uint8_t mod = static_cast<uint8_t>(result.displacement_size);
-		result.value = (mod << 6) | get_reg_rm(reg, rm.offset);
+		uint8_t mod = static_cast<uint8_t>(displacement_size);
+		value = (mod << 6) | get_reg_rm(reg, rm.offset);
 	}
 	else
 	{
 		if (rm.scaled == R::esp || rm.scaled == R::rsp)
-			return false; // throw runtime_error("RSP/ESP cannot be used as a scaled register.");
+			return; // throw runtime_error("RSP/ESP cannot be used as a scaled register.");
 
 		// If we want to access just the RSP (eg. mov [rsp + 0xdead], eax), we
 		// cannot do it without the SIB byte. In that case the scaled index is
@@ -333,16 +352,16 @@ bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm)
 		if ((rm.scaled == R::invalid) && (rm.offset.index() == 4))
 		{
 			if (rm.multiplier != 1)
-				return false;
+				return;
 
 			rm.scaled = R::rsp;
 		}
 
-		result.displacement_size = rm.displacement_size();
+		displacement_size = rm.displacement_size();
 
 		// We cannot have registers rbp, ebp, r13, r13d with zero displacement
-		if ((rm.offset.index() == 5) && (result.displacement_size == disp_size::d0))
-			result.displacement_size = disp_size::d8;
+		if ((rm.offset.index() == 5) && (displacement_size == disp_size::d0))
+			displacement_size = disp_size::d8;
 
 		uint8_t ss;
 
@@ -352,15 +371,15 @@ bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm)
 		case 2: ss = 0x40; break;
 		case 4: ss = 0x80; break;
 		case 8: ss = 0xC0; break;
-		default: return false; //  throw runtime_error("Invalid multiplier!");
+		default: return; //  throw runtime_error("Invalid multiplier!");
 		}
 
-		result.sib_value = ss | (rm.scaled.index() << 3) | rm.offset.index();
+		sib_value = ss | (rm.scaled.index() << 3) | rm.offset.index();
 
-		uint8_t mod = static_cast<uint8_t>(result.displacement_size);
+		uint8_t mod = static_cast<uint8_t>(displacement_size);
 
 		// Index 4 is used for SIB
-		result.value = (mod << 6) | (reg.index() << 3) | 0x04;
+		value = (mod << 6) | (reg.index() << 3) | 0x04;
 	}
 
 	// We calcualte the appropriate prefices
@@ -368,27 +387,27 @@ bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm)
 	if (rm.scaled.valid())
 	{
 		if (rm.scaled.type != rm.offset.type)
-			return false; //throw runtime_error("SIB registers must be of the same type.");
-		result.address_override = (rm.scaled.type == register_type::r32);
+			return; //throw runtime_error("SIB registers must be of the same type.");
+		address_override = (rm.scaled.type == register_type::r32);
 	}
 	else	
-		result.address_override = (rm.offset.type == register_type::r32);
+		address_override = (rm.offset.type == register_type::r32);
 
-	result.operand_size_override = (reg.type == register_type::r16);
+	operand_size_override = (reg.type == register_type::r16);
 
-	result.rex_w = (reg.type == register_type::r64);
-	result.rex_x = (rm.scaled.rex == rex_attributte::rex);
-	result.rex_r = (reg.rex == rex_attributte::rex);
-	result.rex_b = (rm.offset.rex == rex_attributte::rex);
+	rex_w = (reg.type == register_type::r64);
+	rex_x = (rm.scaled.rex == rex_attributte::rex);
+	rex_r = (reg.rex == rex_attributte::rex);
+	rex_b = (rm.offset.rex == rex_attributte::rex);
 
-	result.rex = reg.always_rex()
-		|| result.rex_w || result.rex_b
-		|| result.rex_x || result.rex_r;
+	rex = reg.always_rex()
+		|| rex_w || rex_b
+		|| rex_x || rex_r;
 
-	if (result.rex && reg.never_rex())
-		return false; //throw runtime_error("Cannot use an operand that requires a REX prefix.");
+	if (rex && reg.never_rex())
+		return; //throw runtime_error("Cannot use an operand that requires a REX prefix.");
 
-	return true;
+	valid_ = true;
 }
 
 }

@@ -1,3 +1,21 @@
+/*
+    spasm - x86-64 assembler / JIT support library
+    Copyright (C) 2014  Tibor Djurica Potpara <tibor.djurica@ojdip.net>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include "mov.h"
 
 namespace spasm 
@@ -41,9 +59,9 @@ void push_instruction(instruction& output, const cpu_register& reg,
 instruction mov(cpu_register rm, cpu_register reg)
 {
 	instruction result;
-	mod_rm_specifier mod_rm;
+	mod_rm_specifier mod_rm(reg, rm);
 
-	if (!valid_register(reg) || (reg.type != rm.type) || (!direct(mod_rm, reg, rm)))
+	if (!valid_register(reg) || (reg.type != rm.type) || !mod_rm)
 		return{};
 
 	push_prefices (result, mod_rm);
@@ -56,9 +74,9 @@ instruction mov(cpu_register rm, cpu_register reg)
 instruction mov_indirect(sib_specifier rm, cpu_register reg, bool reg_to_rm)
 {
 	instruction result;
-	mod_rm_specifier mod_rm;
+	mod_rm_specifier mod_rm(reg, rm);
 	
-	if (!indirect(mod_rm, reg, rm) || !valid_register(reg))
+	if (!mod_rm || !valid_register(reg))
 		return{};
 	
 	push_prefices (result, mod_rm);
@@ -84,9 +102,9 @@ instruction mov(cpu_register reg, sib_specifier rm)
 instruction mov_imm(cpu_register reg, void* value, size_t size)
 {
 	instruction result;
-	mod_rm_specifier mod_rm;
+	mod_rm_specifier mod_rm(reg, reg);
 
-	if (!valid_register(reg) || !direct(mod_rm, reg, reg))
+	if (!valid_register(reg) || !mod_rm)
 		return{};
 
 	mod_rm.rex_r = false; // It is irrelephant
@@ -104,7 +122,6 @@ instruction mov_imm(sib_specifier rm, void* value, size_t size)
 {
 	instruction result;
 	cpu_register reg;
-	mod_rm_specifier mod_rm;
 
 	switch (size)
 	{
@@ -116,7 +133,9 @@ instruction mov_imm(sib_specifier rm, void* value, size_t size)
 			return{};
 	}
 
-	if (!valid_register(reg) ||!indirect(mod_rm, reg, rm))
+	mod_rm_specifier mod_rm(reg, rm);
+
+	if (!valid_register(reg) || !mod_rm)
 		return{};
 
 	push_prefices (result, mod_rm);

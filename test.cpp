@@ -1,15 +1,37 @@
+/*
+    spasm - x86-64 assembler / JIT support library
+    Copyright (C) 2014  Tibor Djurica Potpara <tibor.djurica@ojdip.net>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <cstdint>
 #include <cstdlib>
+#include <stdexcept>
 
 #include "lib/spasm.h"
 #include "lib/mov.h"
+#include "lib/executable.h"
 
 using namespace std;
 using namespace spasm;
 
 #include "tests/mov_test.h"
+#include "tests/executable_test.h"
 
 /*
 	Testing is done with GNU AS. Basically, the test case generates both symbolic assembly code
@@ -22,7 +44,7 @@ using namespace spasm;
 int main()
 {
 	std::vector<void (*) (ofstream&, ofstream&)> tests = { 
-		mov_test
+		executable_test, //mov_test, 
 	};
 
 	ofstream instructions("instructions.txt");

@@ -2,6 +2,8 @@
 
 #include "spasm.h"
 
+namespace spasm {
+
 instruction mov_indirect(sib_specifier rm, cpu_register reg, bool reg_to_rm);
 
 instruction mov(cpu_register rm, cpu_register reg);
@@ -20,3 +22,5 @@ template<typename T> instruction movq(cpu_register reg, T value) { return mov_im
 template<typename T> instruction movb(sib_specifier rm, T value) { return mov_imm(rm, &value, 1); }
 template<typename T> instruction movw(sib_specifier rm, T value) { return mov_imm(rm, &value, 2); }
 template<typename T> instruction movl(sib_specifier rm, T value) { return mov_imm(rm, &value, 4); }
+
+}

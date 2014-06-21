@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+namespace spasm {
+
 enum class rex_attributte : int8_t {
 	no_rex, rex, rex_no_rex,
 	invalid
@@ -20,7 +22,6 @@ enum class disp_size : uint8_t {
 	// d16?
 	d0 = 0, d8 = 1, d32 = 2
 };
-
 
 struct cpu_register {
 	register_type type;
@@ -44,7 +45,7 @@ struct cpu_register {
 	bool always_rex() const;
 	bool never_rex() const;
 	bool can_be_used_in_mem() const;
-	int size() const;
+	size_t size() const;
 };
 
 class cpu_registers {
@@ -72,6 +73,8 @@ public:
 	}
 };
 
+/* Try to avoid using these constants in static contexts due to static initialization order fiasco */
+ 
 namespace R {
 	using RT = register_type;
 	using RA = rex_attributte;
@@ -221,3 +224,5 @@ public:
 uint8_t get_reg_rm(cpu_register reg, cpu_register rm);
 bool direct(mod_rm_specifier& result, cpu_register reg, cpu_register rm);
 bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm);
+
+}

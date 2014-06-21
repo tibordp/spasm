@@ -3,6 +3,8 @@
 
 #include "spasm.h"
 
+namespace spasm {
+
 namespace R {
 	const CR al = CRS::insert({ RT::r8, RA::no_rex, "al", 0 });
 	const CR cl = CRS::insert({ RT::r8, RA::no_rex, "cl", 1 });
@@ -187,7 +189,7 @@ bool cpu_register::never_rex() const
 // 	rip, invalid
 // };
 
-int cpu_register::size() const
+size_t cpu_register::size() const
 {
 	switch (type) 
 	{
@@ -387,4 +389,6 @@ bool indirect(mod_rm_specifier& result, cpu_register reg, sib_specifier rm)
 		return false; //throw runtime_error("Cannot use an operand that requires a REX prefix.");
 
 	return true;
+}
+
 }

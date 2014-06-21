@@ -1,5 +1,8 @@
 #include "mov.h"
 
+namespace spasm 
+{
+
 void push_prefices (instruction& output, const mod_rm_specifier& mod_rm)
 {
 	if (mod_rm.address_override) output.push_back(0x67);
@@ -7,64 +10,64 @@ void push_prefices (instruction& output, const mod_rm_specifier& mod_rm)
 	if (mod_rm.rex) output.push_back(mod_rm.get_rex());
 }
 
-instruction mov_indirect(sib_specifier rm, cpu_register reg, bool reg_to_rm)
+bool valid_register(const cpu_register& reg)
 {
-	// Incomplete
-	mod_rm_specifier mod_rm;
-	if (!indirect(mod_rm, reg, rm))
-		return{};
+	return (reg.type == register_type::r64) 
+		|| (reg.type == register_type::r8)
+		|| (reg.type == register_type::r32) 
+		|| (reg.type == register_type::r16) ;
+}
 
-	instruction result;
-
-	push_prefices (result, mod_rm);
-
+void push_instruction(instruction& output, const cpu_register& reg, 
+	const uint8_t value_r8, const uint8_t value_others)
+{
 	switch (reg.type)
 	{
 	case register_type::r8:
-		result.push_back(reg_to_rm ? 0x88 : 0x8a);
+		output.push_back(value_r8);
 		break;
 	case register_type::r16:
 	case register_type::r32:
 	case register_type::r64:
-		result.push_back(reg_to_rm ? 0x89 : 0x8b);
+		output.push_back(value_others);
 		break;
 	default:
-		return{};
+		;
 	}
-
-	result.push_back(mod_rm.value);
-	if (mod_rm.sib) result.push_back(mod_rm.sib_value);
-
-	result.push_displacement(result.end(), mod_rm.displacement_size, rm.displacement);
-	return result;
 }
+
+// -------------------------------------------------------------------------------------------------//
 
 instruction mov(cpu_register rm, cpu_register reg)
 {
-	// Incomplete
+	instruction result;
 	mod_rm_specifier mod_rm;
-	if ((reg.type != rm.type) || (!direct(mod_rm, reg, rm)))
+
+	if (!valid_register(reg) || (reg.type != rm.type) || (!direct(mod_rm, reg, rm)))
 		return{};
 
+	push_prefices (result, mod_rm);
+	push_instruction(result, reg,  0x88, 0x89);
+	result.push_back(mod_rm.value);
+
+	return result;
+}
+
+instruction mov_indirect(sib_specifier rm, cpu_register reg, bool reg_to_rm)
+{
 	instruction result;
+	mod_rm_specifier mod_rm;
+	
+	if (!indirect(mod_rm, reg, rm) || !valid_register(reg))
+		return{};
 	
 	push_prefices (result, mod_rm);
-
-	switch (reg.type)
-	{
-	case register_type::r8:
-		result.push_back(0x88);
-		break;
-	case register_type::r16:
-	case register_type::r32:
-	case register_type::r64:
-		result.push_back(0x89);
-		break;
-	default:
-		return{};
-	}
-
+	push_instruction(result, reg,  reg_to_rm ? 0x88 : 0x8a, reg_to_rm ? 0x89 : 0x8b);
 	result.push_back(mod_rm.value);
+
+	if (mod_rm.sib) result.push_back(mod_rm.sib_value);
+	result.push_displacement(result.end(), mod_rm.displacement_size, rm.displacement);
+
 	return result;
 }
 
@@ -80,33 +83,18 @@ instruction mov(cpu_register reg, sib_specifier rm)
 
 instruction mov_imm(cpu_register reg, void* value, size_t size)
 {
+	instruction result;
 	mod_rm_specifier mod_rm;
-	if (!direct(mod_rm, reg, reg))
+
+	if (!valid_register(reg) || !direct(mod_rm, reg, reg))
 		return{};
 
 	mod_rm.rex_r = false; // It is irrelephant
-	instruction result;
 
 	push_prefices (result, mod_rm);
+	if (reg.size() != size) return {};
 
-	if (reg.size() != size)
-		return {};
-
-	switch (reg.type)
-	{
-	case register_type::r8:
-		result.push_back(0xB0 + reg.index());
-		break;
-	case register_type::r16:
-	case register_type::r32:
-	case register_type::r64:
-		result.push_back(0xB8 + reg.index());
-		break;
-	default:
-		return{};
-	}
-
-	// result.push_back(mod_rm.value);
+	push_instruction(result, reg,  0xB0 + reg.index(), 0xB8 + reg.index());
 	result.push_data(result.end(), value, size);
 
 	return result;
@@ -114,7 +102,9 @@ instruction mov_imm(cpu_register reg, void* value, size_t size)
 
 instruction mov_imm(sib_specifier rm, void* value, size_t size)
 {
+	instruction result;
 	cpu_register reg;
+	mod_rm_specifier mod_rm;
 
 	switch (size)
 	{
@@ -126,28 +116,11 @@ instruction mov_imm(sib_specifier rm, void* value, size_t size)
 			return{};
 	}
 
-	mod_rm_specifier mod_rm;
-
-	if (!indirect(mod_rm, reg, rm))
+	if (!valid_register(reg) ||!indirect(mod_rm, reg, rm))
 		return{};
-
-	instruction result;
 
 	push_prefices (result, mod_rm);
-
-	switch (reg.type)
-	{
-	case register_type::r8:
-		result.push_back(0xC6);
-		break;
-	case register_type::r16:
-	case register_type::r32:
-	case register_type::r64:
-		result.push_back(0xC7);
-		break;
-	default:
-		return{};
-	}
+	push_instruction(result, reg,  0xC6, 0xC7);
 
 	result.push_back(mod_rm.value);
 	if (mod_rm.sib) result.push_back(mod_rm.sib_value);
@@ -155,4 +128,6 @@ instruction mov_imm(sib_specifier rm, void* value, size_t size)
 	result.push_data(result.end(), value, size);
 
 	return result;
+}
+
 }

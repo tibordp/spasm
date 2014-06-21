@@ -1,73 +1,43 @@
 #include <iostream>
-#include <cstdint>
-#include <array>
 #include <iomanip>
-#include <map>
-#include <vector>
-#include <sstream>
-#include <unordered_map>
-#include <bitset>
-#include <stdexcept>
-#include <exception>
-#include <limits>
 #include <fstream>
+#include <cstdlib>
 
-#include "spasm.h"
-#include "mov.h"
+#include "lib/spasm.h"
+#include "lib/mov.h"
 
 using namespace std;
+using namespace spasm;
 
-bool indirect_test()
+#include "tests/mov_test.h"
+
+/*
+	Testing is done with GNU AS. Basically, the test case generates both symbolic assembly code
+	and corresponding hex-encoded binary code. Then the program is assembled with `as` and 
+	dissassebled with `objdump`. Then the input is parsed and compared with a Python script.
+	
+	See test.py for details and implementation.
+*/
+
+int main()
 {
+	std::vector<void (*) (ofstream&, ofstream&)> tests = { 
+		mov_test
+	};
+
 	ofstream instructions("instructions.txt");
 	ofstream bytes("bytes.txt");
 
 	instructions << ".intel_syntax noprefix" << endl;
 
-	for (auto i : cpu_registers::all())
+	try {
+		for (auto test : tests) 
+			test(bytes, instructions);
+	} catch (const std::exception& e)
 	{
-		if (i.type > register_type::r64)
-			continue;
-
-		for (auto j : cpu_registers::all())
-			for (auto k : cpu_registers::all())
-				for (int multiplier = 1; multiplier <= 8; multiplier *= 2)
-				{
-					auto X = mov(i, { multiplier, j, k });
-
-					if (!X.empty())
-					{
-						instructions << "mov " << i.name << ", " << sib_specifier({ multiplier, j, k }).to_string();
-						instructions << endl;
-
-						bool first = true;
-
-						for (int i : X)
-						{
-							if (first)
-								first = false;
-							else
-								bytes << " ";
-							bytes << setfill('0') << setw(2) << hex << i;
-						}
-
-						bytes << endl;
-					}
-				}
+		cerr << "Tests failed with [" << e.what() << "]" << endl;
+		return EXIT_FAILURE;
 	}
 
-	return true;
-}
-
-int main()
-{
-	auto tests = { [] { return indirect_test(); } };
-	for (auto test : tests)
-		if (!test())
-		{
-			cerr << "Test failed";
-			return 1;
-		}
-
-	return 0;
+	return EXIT_SUCCESS;
 }

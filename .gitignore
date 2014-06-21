@@ -1,6 +1,12 @@
+build/
+bin/
+
+spasm
+
 # Compiled Object files
 *.slo
 *.lo
+*.d
 *.o
 *.obj
 
@@ -19,3 +25,5 @@
 *.exe
 *.out
 *.app
+*.xml
+*.dtd

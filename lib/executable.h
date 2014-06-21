@@ -123,7 +123,8 @@ public:
 		memcpy(copy.data_, other.data_, other.size_);
 		
 		// Recalculate the entry point offset
-		entry_point_ = data_ + (other.entry_point_ - other.data_);
+		copy.entry_point_ = static_cast<char*>(copy.data_) + 
+			(static_cast<char*>(other.entry_point_) - static_cast<char*>(other.data_));
 
 		copy.set_executable(other.executable_);
 

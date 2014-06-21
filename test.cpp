@@ -55,7 +55,7 @@ int main()
 	try {
 		for (auto test : tests) 
 			test(bytes, instructions);
-	} catch (const std::exception& e)
+	} catch (const std::runtime_error& e)
 	{
 		cerr << "Tests failed with [" << e.what() << "]" << endl;
 		return EXIT_FAILURE;

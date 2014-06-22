@@ -1,4 +1,4 @@
-void executable_test(ofstream& bytes, ofstream& instructions)
+void executable_test(ostream& bytes, ostream& instructions)
 {
 	// Just to suppress the warning message
 	bytes.flush();
@@ -6,10 +6,7 @@ void executable_test(ofstream& bytes, ofstream& instructions)
 
 	instruction code;
 	code.push_value<int64_t>(code.end(), -1337);	
-
-	auto ins = mov(R::rax, {R::rip, -15});
-
-	code.insert(code.end(), ins.begin(), ins.end());
+	code.mov(R::rax, {R::rip, -15});
 	code.push_back(0xc3);
 
 	x_function<int64_t(void)> fun(&code[0], code.size());

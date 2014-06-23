@@ -38,9 +38,11 @@ else:
 
 	i = 0
 	for line in os.popen('objdump -w -M intel -d instructions.bin'):
-		match = re.match( r'.*:\s(([a-f0-9]{2}\s)+)\s+(mov.*)\n', line)
+		match = re.match( r'.*:\s(([a-f0-9]{2}\s)+)\s+(.*)\n', line)
 		if (match):
 			#if ((match.group(1).strip() != byte_lines[i].strip()) or random.choice(range(1000)) == 500):
+			if i >= len(byte_lines):
+				break
 			if (match.group(1).strip() != byte_lines[i].strip()):
 				
 				# i + 1 because we have the Intel syntax declaration on the first line
@@ -50,13 +52,15 @@ else:
 				print("\tinstruction: ",  instructions_lines[i + 1].strip(), file = sys.stderr) 
 				print("\tdisassembly: ", match.group(3).strip(), file = sys.stderr) 
 				success = False
+				#break
 
 			i += 1
 
 try:
-	os.unlink("bytes.txt")
-	os.unlink("instructions.bin")
-	os.unlink("instructions.txt")
+	pass
+	#os.unlink("bytes.txt")
+	#os.unlink("instructions.bin")
+	#os.unlink("instructions.txt")
 except:
 	pass
 

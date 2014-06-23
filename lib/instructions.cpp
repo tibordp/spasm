@@ -18,6 +18,8 @@
 
 #include "instructions.h"
 
+#include <limits>
+
 namespace spasm 
 {
 
@@ -181,5 +183,26 @@ bool instruction::indirect_immediate(const sib_specifier& rm, size_t ptr_size, v
 		return false;
 }
 
+bool instruction::conditional_jump(int32_t offset, uint8_t opcode, bool address_override)
+{
+	if ((offset <= std::numeric_limits<int8_t>::max()) &&
+		(offset >= std::numeric_limits<int8_t>::min()))
+	{
+		if (address_override)
+			push_back(0x67);
+		push_back(opcode);
+		push_back(static_cast<int8_t>(offset));
+	}
+	else
+	{
+		// jrcxz / jecxz
+		if (opcode == 0xe3)
+			return false;
+		push_back(0x0f);
+		push_back(opcode + 0x10);
+		push_value<int32_t>(end(), offset);
+	}
+	return true;
+}
 
 }

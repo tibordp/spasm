@@ -16,22 +16,24 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <utility>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <cstdint>
 #include <cstdlib>
+#include <sstream>
+#include <chrono>
 #include <stdexcept>
 
 #include "lib/spasm.h"
-#include "lib/mov.h"
+#include "lib/instructions.h"
 #include "lib/executable.h"
 
 using namespace std;
 using namespace spasm;
 
-#include "tests/mov_test.h"
-#include "tests/executable_test.h"
+#include "tests/tests.inc"
 
 /*
 	Testing is done with GNU AS. Basically, the test case generates both symbolic assembly code
@@ -41,25 +43,65 @@ using namespace spasm;
 	See test.py for details and implementation.
 */
 
+template<typename T>
+double time(T callback)
+{
+	using namespace chrono;
+ 
+	/* TODO: Is it possible that the following lines somehow get reordered?
+	   There are some weird results on gcc with -O3 */
+	
+	auto start = high_resolution_clock::now();
+	callback();
+	auto end = high_resolution_clock::now();
+ 
+	return duration_cast<duration<double>>(end - start).count();
+}
+
 int main()
 {
-	std::vector<void (*) (ofstream&, ofstream&)> tests = { 
-		executable_test, //mov_test, 
+	std::vector<void (*) (ostream&, ostream&)> tests = { 
+		executable_test, 
+		
+		mov_test,
+		
+		or__test,
+		add_test,
+		adc_test,
+		sbb_test,
+		and__test,
+		sub_test,
+		xor__test,
+		cmp_test,
+
+		rol_test,
+		ror_test,
+		rcl_test,
+		rcr_test,
+		shl_test,
+		sal_test,
+		shr_test,
+		sar_test,
+
+		inc_test,
+		dec_test,
+		
+		jcc_test,
 	};
 
 	ofstream instructions("instructions.txt");
 	ofstream bytes("bytes.txt");
-
 	instructions << ".intel_syntax noprefix" << endl;
 
 	try {
 		for (auto test : tests) 
-			test(bytes, instructions);
+			cerr << "Test took " << time([&] { test(bytes, instructions); }) << "s" << endl;
+
 	} catch (const std::runtime_error& e)
 	{
 		cerr << "Tests failed with [" << e.what() << "]" << endl;
 		return EXIT_FAILURE;
 	}
-
+	cerr << "Tests completed." << endl;
 	return EXIT_SUCCESS;
 }

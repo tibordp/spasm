@@ -58,6 +58,11 @@ struct cpu_register {
 		return seq == lhs.seq;
 	}
 
+	bool operator!=(const cpu_register& lhs) const
+	{
+		return seq != lhs.seq;
+	}
+
 	bool valid() const { return type != register_type::invalid; }
 	
 	bool always_rex() const;
@@ -214,41 +219,7 @@ public:
 	mod_rm_specifier(cpu_register reg, sib_specifier rm);
 };
 
-/*
-	For now `instruction` is simply a vector with some added functionality (pushing arbitrarily-sized
-	data. 
-*/
-class instruction : public std::vector<uint8_t> {
-public:
-	template<typename T>
-	void push_value(iterator whither, T what)
-	{
-		auto position = whither - begin();
-		insert(whither, sizeof(T), 0x00);
-		*reinterpret_cast<T*>(&(*this)[position]) = what;
-	}
 
-	void push_data(iterator whither, void* value, size_t size)
-	{
-		insert(whither, static_cast<uint8_t*>(value), static_cast<uint8_t*>(value) + size);
-	}
-
-	void push_displacement(iterator whither, disp_size size, int32_t displacement)
-	{
-		switch (size)
-		{
-		case disp_size::d8:
-			push_value(whither, static_cast<int8_t>(displacement));
-			break;
-		case disp_size::d32:
-			push_value(whither, displacement);
-			break;
-		default:
-			break;
-		}
-	}
-
-};
 
 uint8_t get_reg_rm(cpu_register reg, cpu_register rm);
 

@@ -36,6 +36,45 @@ private:
 	void push_prefices (const mod_rm_specifier&);
 	void push_instruction(const cpu_register&, const uint8_t, const uint8_t);
 
+	bool conditional_jump(int32_t offset, uint8_t opcode, bool address_override = false);
+	
+	bool direct(const cpu_register& rm, const cpu_register& reg,
+		const uint8_t value_r8, const uint8_t value_others);
+
+	bool indirect(const sib_specifier& rm, const cpu_register& reg,
+		const uint8_t value_r8, const uint8_t value_others);
+
+	bool direct_simple(const cpu_register& rm,
+		const uint8_t value_r8, const uint8_t value_others, bool add_index, int offset = 0);
+
+	bool indirect_simple(const sib_specifier& rm, size_t ptr_size,
+		const uint8_t value_r8, const uint8_t value_others, int offset);
+
+	bool direct_immediate(const cpu_register& reg, void* value, size_t size,
+		const uint8_t value_r8, const uint8_t value_others, bool add_index, int offset = 0);
+
+	bool indirect_immediate(const sib_specifier& rm, size_t ptr_size, void* value, size_t size,
+		const uint8_t value_r8, const uint8_t value_others, int offset = 0);
+
+	template<size_t size, typename T>
+	bool handle_add_etc(const cpu_register& reg, T value, size_t index) 
+	{ 
+		static_assert(sizeof(T) == size, "Invalid operand size"); 
+		if (reg.size() != size) return false;  // TODO: Improve for sign-extended operands.
+		
+		if (reg == R::al)
+		{ push_back(0x04 + index * 0x8); }
+		else if (reg == R::ax)
+		{ push_back(0x66); push_back(0x05 + index * 0x8); }
+		else if (reg == R::eax)
+		{ push_back(0x05 + index * 0x8); }
+		else
+		return direct_immediate(reg, &value, size, 0x80, 0x81, false, index); 
+
+		push_value<T>(end(), value);
+		return true;
+	} 
+
 public:
 	template<typename T>
 	void push_value(iterator whither, T what)
@@ -65,29 +104,12 @@ public:
 		}
 	}
 
-	bool direct(const cpu_register& rm, const cpu_register& reg,
-		const uint8_t value_r8, const uint8_t value_others);
-
-	bool indirect(const sib_specifier& rm, const cpu_register& reg,
-		const uint8_t value_r8, const uint8_t value_others);
-
-	bool direct_simple(const cpu_register& rm,
-		const uint8_t value_r8, const uint8_t value_others, bool add_index, int offset = 0);
-
-	bool indirect_simple(const sib_specifier& rm, size_t ptr_size,
-		const uint8_t value_r8, const uint8_t value_others, int offset);
-
-	bool direct_immediate(const cpu_register& reg, void* value, size_t size,
-		const uint8_t value_r8, const uint8_t value_others, bool add_index, int offset = 0);
-
-	bool indirect_immediate(const sib_specifier& rm, size_t ptr_size, void* value, size_t size,
-		const uint8_t value_r8, const uint8_t value_others, int offset = 0);
-
 	// ------------ mov ------------
 
 	template<size_t size, typename T> 
 	bool mov(const cpu_register& reg, T value) { \
 		static_assert(sizeof(T) == size, "Invalid operand size"); \
+		if (reg.size() != size) return false;
 		return direct_immediate(reg, &value, size, 0xB0, 0xB8, true); }
 	template<size_t size, typename T> 
 	bool mov(const sib_specifier& rm, T value) { \
@@ -101,9 +123,7 @@ public:
 
 	#define DEFINE_COMMON(name, index) \
 		template<size_t size, typename T> \
-				bool name(const cpu_register& reg, T value) { \
-			static_assert(sizeof(T) == size, "Invalid operand size"); \
-			return direct_immediate(reg, &value, size, 0x80, 0x81, false, index); } \
+		bool name(const cpu_register& reg, T value) { return handle_add_etc<size, T>(reg, value, index); } \
 		template<size_t size, typename T> \
 		bool name(const sib_specifier& rm, T value) { \
 			static_assert(sizeof(T) == size, "Invalid operand size"); \
@@ -127,7 +147,7 @@ public:
 		if (reg.type == register_type::r8) return false;
 		return indirect(rm, reg, 0x8D, 0x8D); }
 	
-	// ------------ sal, sar ------------
+	// ------------ sal, sar, ... ------------
 	#undef DEFINE_COMMON
 	#define DEFINE_COMMON(name, index) \
 		bool name(const cpu_register& reg) { return direct_simple(reg, 0xd0, 0xd1, false, index); } \
@@ -164,6 +184,71 @@ public:
 	bool dec(const cpu_register& rm) {  return direct_simple(rm, 0xfe, 0xff, false, 1); } 
 	template<size_t size> bool dec(const sib_specifier& rm) { return indirect_simple(rm, size, 0xfe, 0xff, 1); } 	
 
+	// ------------ Conditional jumps (Jcc) ------------
+
+	// These two are special:
+	bool jrcxz(int32_t offset) { return conditional_jump(offset, 0xe3 ); } 	
+	bool jecxz(int32_t offset) { return conditional_jump(offset, 0xe3, true ); } 	 	
+
+	bool ja(int32_t offset) { return conditional_jump(offset, 0x77 ); } 	 	
+	bool jae(int32_t offset) { return conditional_jump(offset, 0x73 ); } 	 	
+	bool jb(int32_t offset) { return conditional_jump(offset, 0x72 ); } 	 	
+	bool jbe(int32_t offset) { return conditional_jump(offset, 0x76 ); } 	 	
+	bool jc(int32_t offset) { return conditional_jump(offset, 0x72 ); } 	 	
+	bool je(int32_t offset) { return conditional_jump(offset, 0x74 ); } 	 	
+	bool jg(int32_t offset) { return conditional_jump(offset, 0x7f ); } 	 	
+	bool jge(int32_t offset) { return conditional_jump(offset, 0x7d ); } 	 	
+	bool jl(int32_t offset) { return conditional_jump(offset, 0x7c ); } 	 	
+	bool jle(int32_t offset) { return conditional_jump(offset, 0x7e ); } 	 	
+	bool jna(int32_t offset) { return conditional_jump(offset, 0x76 ); } 	 	
+	bool jnae(int32_t offset) { return conditional_jump(offset, 0x72 ); } 	 	
+	bool jnb(int32_t offset) { return conditional_jump(offset, 0x73 ); } 	 	
+	bool jnbe(int32_t offset) { return conditional_jump(offset, 0x77 ); } 	 		
+	bool jnc(int32_t offset) { return conditional_jump(offset, 0x73 ); } 	 	
+	bool jne(int32_t offset) { return conditional_jump(offset, 0x75 ); } 	 	
+	bool jng(int32_t offset) { return conditional_jump(offset, 0x7e ); } 	 	
+	bool jnge(int32_t offset) { return conditional_jump(offset, 0x7c ); } 
+	bool jnl(int32_t offset) { return conditional_jump(offset, 0x7d ); } 	 	
+	bool jnle(int32_t offset) { return conditional_jump(offset, 0x7f ); } 
+	bool jno(int32_t offset) { return conditional_jump(offset, 0x71 ); } 	 	
+	bool jnp(int32_t offset) { return conditional_jump(offset, 0x7b ); } 	 	
+	bool jns(int32_t offset) { return conditional_jump(offset, 0x79 ); } 	 	
+	bool jnz(int32_t offset) { return conditional_jump(offset, 0x75 ); } 	 	
+	bool jo(int32_t offset) { return conditional_jump(offset, 0x70 ); } 	 	
+	bool jp(int32_t offset) { return conditional_jump(offset, 0x7a ); } 	 	
+	bool jpe(int32_t offset) { return conditional_jump(offset, 0x7a ); } 
+	bool jpo(int32_t offset) { return conditional_jump(offset, 0x7b ); } 	 	
+	bool js(int32_t offset) { return conditional_jump(offset, 0x78 ); } 	
+	bool jz(int32_t offset) { return conditional_jump(offset, 0x74 ); } 		
+
+	// ----------- nop -----------
+
+	bool nop(size_t size = 1) 
+	{
+		// It doesn't really matter, but to keep things 8-byte aligned.
+		
+		while(size > 8)
+		{
+			nop(8);
+			size -= 8;
+		}
+
+		switch (size)
+		{
+		case 1: insert(end(), {0x90}); break;
+		case 2: insert(end(), {0x66, 0x90}); break;
+		case 3: insert(end(), {0x0F, 0x1F, 0x00}); break;
+		case 4: insert(end(), {0x0F, 0x1F, 0x40, 0x00}); break;
+		case 5: insert(end(), {0x0F, 0x1F, 0x44, 0x00, 0x00}); break;
+		case 6: insert(end(), {0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00}); break;
+		case 7: insert(end(), {0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00}); break;
+		case 8: insert(end(), {0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}); break;
+		//case 9: insert(end(), {0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}); break;
+		default:
+			return false;
+		}
+		return true;
+	}
 
 };
 

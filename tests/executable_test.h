@@ -33,21 +33,24 @@ void executable_test(ostream& bytes, ostream& instructions)
 
 x_function<void(int)> sloncki()
 {
-	static const char format[] = "%d malih slonckov se je pozibavalo\n" 
-								 "na pajcevini tam po drevesom.\n"
-								 "Ko so ugotovili, da stvar je zanimiva,\n"
-								 "so poklicali se enega sloncka.\n\n";
+	static const char format_string[] = "%d malih slonckov se je pozibavalo\n" 
+	                                    "na pajcevini tam po drevesom.\n"
+	                                    "Ko so ugotovili, da stvar je zanimiva,\n"
+	                                    "so poklicali se enega sloncka.\n\n";
 	instruction code;
 
 	const uint8_t frame_size = 0x28;
+	
+	// instruction does not own the labels!
+	code_label print, format, start, loop;
 
-	code.label("printf");
+	code.label(print);
 	code.push_value(code.end(), &printf);
 
-	code.label("format");
-	code.push_value(code.end(), &format[0]);
+	code.label(format);
+	code.push_value(code.end(), &format_string[0]);
 
-	code.label("start");
+	code.label(start);
 		code.push(R::r12);
 		code.push(R::r13);
 	
@@ -56,16 +59,16 @@ x_function<void(int)> sloncki()
 		code.mov(R::r13, R::rcx);        // Save the parameter to be reused
 		code.xor_(R::r12, R::r12);       // Set r12 to 0
 
-	code.label("loop");
-		code.mov(R::rcx, { "format" });  // The first parameter is the format string	
+	code.label(loop);
+		code.mov(R::rcx, { format });  // The first parameter is the format string	
 		code.mov(R::rdx, R::r12);		 // Copy the first parameter to second parameter
 		code.inc(R::rdx);				 // We start at 1.
 		
-		code.call({ "printf" });
+		code.call({ print });
 	
 		code.inc(R::r12);
 		code.cmp(R::r12, R::r13);
-		code.jne("loop");
+		code.jne(loop);
 	
 	code.add<1>(R::rsp, frame_size); // Restore the stack pointer
 	code.pop(R::r13);
@@ -73,7 +76,7 @@ x_function<void(int)> sloncki()
 	
 	code.ret();
 
-	return code.compile<void(int)>();
+	return code.compile<void(int)>(start);
 }
 
 void executable_test2(ostream& bytes, ostream& instructions)

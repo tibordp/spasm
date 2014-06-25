@@ -12,7 +12,7 @@
 
 void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 {
-	auto  name = [] {
+	auto name = [] {
 		stringstream ss;
 		for (char i : string(STRINGIFY(T_COMMON)))
 			if (i != '_')

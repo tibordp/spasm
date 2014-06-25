@@ -151,6 +151,20 @@ namespace R {
 	extern const CR dr15;   extern const CR invalid; extern const CR rip;
 }
 
+struct code_label_target {
+	size_t target;
+	size_t offset;
+};
+
+struct code_label {
+	bool valid;
+	size_t where;
+	std::vector<code_label_target> targets;
+
+	code_label() : valid(false) {}
+};
+
+
 struct sib_specifier {
 public:
 	int multiplier;
@@ -158,33 +172,37 @@ public:
 	cpu_register offset;
 	int32_t displacement;
 
-	const std::string rip_label;
+	code_label * const rip_label;
 
 	sib_specifier(int32_t displacement_) :
 		multiplier(1), scaled(R::invalid), 
-		offset(R::invalid), displacement(displacement_)
+		offset(R::invalid), displacement(displacement_),
+		rip_label(nullptr)
 	{
 	}
 	sib_specifier(cpu_register which, int32_t displacement_ = 0) :
 		multiplier(1), scaled(R::invalid), 
-		offset(which), displacement(displacement_)
+		offset(which), displacement(displacement_),
+		rip_label(nullptr)
 	{
 	}
 	sib_specifier(int multiplier_, cpu_register scaled_, int32_t displacement_ = 0) :
 		multiplier(multiplier_), scaled(scaled_), 
-		offset(R::invalid), displacement(displacement_)
+		offset(R::invalid), displacement(displacement_),
+		rip_label(nullptr)
 	{
 	}
 	sib_specifier(int multiplier_, cpu_register scaled_, cpu_register offset_, int32_t displacement_ = 0) :
 		multiplier(multiplier_), scaled(scaled_), 
-		offset(offset_), displacement(displacement_)
+		offset(offset_), displacement(displacement_),
+		rip_label(nullptr)
 	{
 	}
 
-	sib_specifier(const std::string& label) :
+	sib_specifier(code_label& label) :
 		multiplier(1), scaled(R::invalid),
 		offset(R::rip), displacement(0),
-		rip_label(label)
+		rip_label(&label)
 	{
 	}
 
@@ -198,6 +216,9 @@ public:
 	size_t size() const;
 
 	bool needs_sib() const;
+	bool has_label() const;
+	code_label& label() const;
+
 	disp_size displacement_size() const;
 	std::string to_string();
 

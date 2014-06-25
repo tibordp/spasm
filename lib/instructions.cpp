@@ -88,14 +88,8 @@ bool instruction::indirect(const sib_specifier& rm, const cpu_register& reg,
 	if (mod_rm.sib) push_back(mod_rm.sib_value);
 	push_displacement(end(), mod_rm.displacement_size, rm.displacement);
 
-	if (!rm.rip_label.empty())
-	{
-		code_label_target tgt;
-		tgt.target = size() - 4;
-		tgt.offset = size();
-
-		labels[rm.rip_label].targets.push_back(tgt);
-	}
+	if (rm.has_label())
+		rm.label().targets.push_back({this->size() - 4, this->size()});
 
 	return true;
 }
@@ -147,14 +141,8 @@ bool instruction::indirect_simple(const sib_specifier& rm, size_t ptr_size,
 {
 	if (!indirect_nolabel(rm, ptr_size, value_r8, value_others, index, skip_rexw)) return false;
 
-	if (!rm.rip_label.empty())
-	{
-		code_label_target tgt;
-		tgt.target = size() - 4;
-		tgt.offset = size();
-
-		labels[rm.rip_label].targets.push_back(tgt);
-	}
+	if (rm.has_label())
+		rm.label().targets.push_back({this->size() - 4, this->size()});
 
 	return true;
 }
@@ -179,14 +167,8 @@ bool instruction::indirect_immediate(const sib_specifier& rm, size_t ptr_size, v
 
 	push_data(end(), value, size);
 	
-	if (!rm.rip_label.empty())
-	{
-		code_label_target tgt;
-		tgt.target = this->size() - size - 4;
-		tgt.offset = this->size();
-
-		labels[rm.rip_label].targets.push_back(tgt);
-	}
+	if (rm.has_label())
+		rm.label().targets.push_back({this->size() - size - 4, this->size()});
 
 	return true;
 }
@@ -214,19 +196,15 @@ bool instruction::conditional_jump(int32_t offset, uint8_t opcode, bool address_
 	return true;
 }
 
-bool instruction::conditional_jump(const std::string& label, uint8_t opcode)
+bool instruction::conditional_jump(code_label& label, uint8_t opcode)
 {
 	if (opcode == 0xe3)
 		return false;
 	push_back(0x0f);
 	push_back(opcode + 0x10);
 	push_value<int32_t>(end(), 0);
-	
-	code_label_target tgt;
-	tgt.target = size() - 4;
-	tgt.offset = size();
 
-	labels[label].targets.push_back(tgt);
+	label.targets.push_back({this->size() - 4, this->size()});
 
 	return true;
 }

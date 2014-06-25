@@ -31,29 +31,17 @@ namespace spasm {
 	data. 
 */
 
-struct code_label_target {
-	size_t offset;
-	size_t target;
-};
-
-struct code_label {
-	bool valid;
-	size_t where;
-	std::vector<code_label_target> targets;
-
-	code_label() : valid(false) {}
-};
 
 class instruction : public std::vector<uint8_t> {
 private:
-	std::map<std::string, code_label> labels;
+	std::vector<code_label*> labels;
 
 	void push_prefices (const mod_rm_specifier&);
 	
 	void push_instruction(size_t size, const uint8_t, const uint8_t);
 
 	bool conditional_jump(int32_t offset, uint8_t opcode, bool address_override = false);
-	bool conditional_jump(const std::string& label, uint8_t opcode);
+	bool conditional_jump(code_label& label, uint8_t opcode);
 	
 	bool direct(const cpu_register& rm, const cpu_register& reg,
 		const uint8_t value_r8, const uint8_t value_others);
@@ -102,38 +90,37 @@ private:
 public:
 	
 	template<typename T>
-	x_function<T> compile() {
+	x_function<T> compile(const code_label& start) {
 		x_function<T> function(size());
 		memcpy(function.data(), &(*this)[0], size());
 
 		uint8_t* data = static_cast<uint8_t*>(function.data());
 
-		for (const auto& label : labels)
+		for (auto label : labels)
 		{
-			if (!label.second.valid)
+			if (!label->valid)
 				throw std::runtime_error("Invalid label reference.");
 
-			for (const auto& target : label.second.targets)
+			for (const auto& target : label->targets)
 			{
 				*reinterpret_cast<int32_t*>(data + target.target) = 
-					(int32_t)(label.second.where - target.offset);
+					(int32_t)(label->where - target.offset);
 			}
 		}
 
-		auto start = labels.find("start");
-		
-		if (start != labels.end())
-			function.set_entry(start->second.where);
+		if (start.valid)
+			function.set_entry(start.where);
+		else
+			throw std::runtime_error("Invalid label reference."); 
 		
 		function.set_executable(true);
 		return function;
 	}
 
-
-	void label(const std::string& name) {
-		code_label& target = labels[name];
-		target.valid = true;
-		target.where = size();
+	void label(code_label& label) {
+		label.valid = true;
+		label.where = size();
+		labels.push_back(&label);
 	}
 
 	template<typename T>
@@ -265,65 +252,65 @@ public:
 	bool jecxz(int32_t offset) { return conditional_jump(offset, 0xe3, true ); }
 
 	bool ja(int32_t offset)    { return conditional_jump(offset, 0x77 ); }
-	bool ja(const std::string& label)    { return conditional_jump(label, 0x77 ); }
+	bool ja(code_label& label)    { return conditional_jump(label, 0x77 ); }
 	bool jae(int32_t offset)   { return conditional_jump(offset, 0x73 ); }
-	bool jae(const std::string& label)   { return conditional_jump(label, 0x73 ); }
+	bool jae(code_label& label)   { return conditional_jump(label, 0x73 ); }
 	bool jb(int32_t offset)    { return conditional_jump(offset, 0x72 ); }
-	bool jb(const std::string& label)    { return conditional_jump(label, 0x72 ); }
+	bool jb(code_label& label)    { return conditional_jump(label, 0x72 ); }
 	bool jbe(int32_t offset)   { return conditional_jump(offset, 0x76 ); }
-	bool jbe(const std::string& label)   { return conditional_jump(label, 0x76 ); }
+	bool jbe(code_label& label)   { return conditional_jump(label, 0x76 ); }
 	bool jc(int32_t offset)    { return conditional_jump(offset, 0x72 ); }
-	bool jc(const std::string& label)    { return conditional_jump(label, 0x72 ); }
+	bool jc(code_label& label)    { return conditional_jump(label, 0x72 ); }
 	bool je(int32_t offset)    { return conditional_jump(offset, 0x74 ); }
-	bool je(const std::string& label)    { return conditional_jump(label, 0x74 ); }
+	bool je(code_label& label)    { return conditional_jump(label, 0x74 ); }
 	bool jg(int32_t offset)    { return conditional_jump(offset, 0x7f ); }
-	bool jg(const std::string& label)    { return conditional_jump(label, 0x7f ); }
+	bool jg(code_label& label)    { return conditional_jump(label, 0x7f ); }
 	bool jge(int32_t offset)   { return conditional_jump(offset, 0x7d ); }
-	bool jge(const std::string& label)   { return conditional_jump(label, 0x7d ); }
+	bool jge(code_label& label)   { return conditional_jump(label, 0x7d ); }
 	bool jl(int32_t offset)    { return conditional_jump(offset, 0x7c ); }
-	bool jl(const std::string& label)    { return conditional_jump(label, 0x7c ); }
+	bool jl(code_label& label)    { return conditional_jump(label, 0x7c ); }
 	bool jle(int32_t offset)   { return conditional_jump(offset, 0x7e ); }
-	bool jle(const std::string& label)   { return conditional_jump(label, 0x7e ); }
+	bool jle(code_label& label)   { return conditional_jump(label, 0x7e ); }
 	bool jna(int32_t offset)   { return conditional_jump(offset, 0x76 ); }
-	bool jna(const std::string& label)   { return conditional_jump(label, 0x76 ); }
+	bool jna(code_label& label)   { return conditional_jump(label, 0x76 ); }
 	bool jnae(int32_t offset)  { return conditional_jump(offset, 0x72 ); }
-	bool jnae(const std::string& label)  { return conditional_jump(label, 0x72 ); }
+	bool jnae(code_label& label)  { return conditional_jump(label, 0x72 ); }
 	bool jnb(int32_t offset)   { return conditional_jump(offset, 0x73 ); }
-	bool jnb(const std::string& label)   { return conditional_jump(label, 0x73 ); }
+	bool jnb(code_label& label)   { return conditional_jump(label, 0x73 ); }
 	bool jnbe(int32_t offset)  { return conditional_jump(offset, 0x77 ); }
-	bool jnbe(const std::string& label)  { return conditional_jump(label, 0x77 ); }
+	bool jnbe(code_label& label)  { return conditional_jump(label, 0x77 ); }
 	bool jnc(int32_t offset)   { return conditional_jump(offset, 0x73 ); }
-	bool jnc(const std::string& label)   { return conditional_jump(label, 0x73 ); }
+	bool jnc(code_label& label)   { return conditional_jump(label, 0x73 ); }
 	bool jne(int32_t offset)   { return conditional_jump(offset, 0x75 ); }
-	bool jne(const std::string& label)   { return conditional_jump(label, 0x75 ); }
+	bool jne(code_label& label)   { return conditional_jump(label, 0x75 ); }
 	bool jng(int32_t offset)   { return conditional_jump(offset, 0x7e ); }
-	bool jng(const std::string& label)   { return conditional_jump(label, 0x7e ); }
+	bool jng(code_label& label)   { return conditional_jump(label, 0x7e ); }
 	bool jnge(int32_t offset)  { return conditional_jump(offset, 0x7c ); }
-	bool jnge(const std::string& label)  { return conditional_jump(label, 0x7c ); }
+	bool jnge(code_label& label)  { return conditional_jump(label, 0x7c ); }
 	bool jnl(int32_t offset)   { return conditional_jump(offset, 0x7d ); }
-	bool jnl(const std::string& label)   { return conditional_jump(label, 0x7d ); }
+	bool jnl(code_label& label)   { return conditional_jump(label, 0x7d ); }
 	bool jnle(int32_t offset)  { return conditional_jump(offset, 0x7f ); }
-	bool jnle(const std::string& label)  { return conditional_jump(label, 0x7f ); }
+	bool jnle(code_label& label)  { return conditional_jump(label, 0x7f ); }
 	bool jno(int32_t offset)   { return conditional_jump(offset, 0x71 ); }
-	bool jno(const std::string& label)   { return conditional_jump(label, 0x71 ); }
+	bool jno(code_label& label)   { return conditional_jump(label, 0x71 ); }
 	bool jnp(int32_t offset)   { return conditional_jump(offset, 0x7b ); }
-	bool jnp(const std::string& label)   { return conditional_jump(label, 0x7b ); }
+	bool jnp(code_label& label)   { return conditional_jump(label, 0x7b ); }
 	bool jns(int32_t offset)   { return conditional_jump(offset, 0x79 ); }
-	bool jns(const std::string& label)   { return conditional_jump(label, 0x79 ); }
+	bool jns(code_label& label)   { return conditional_jump(label, 0x79 ); }
 	bool jnz(int32_t offset)   { return conditional_jump(offset, 0x75 ); }
-	bool jnz(const std::string& label)   { return conditional_jump(label, 0x75 ); }
+	bool jnz(code_label& label)   { return conditional_jump(label, 0x75 ); }
 	bool jo(int32_t offset)    { return conditional_jump(offset, 0x70 ); }
-	bool jo(const std::string& label)    { return conditional_jump(label, 0x70 ); }
+	bool jo(code_label& label)    { return conditional_jump(label, 0x70 ); }
 	bool jp(int32_t offset)    { return conditional_jump(offset, 0x7a ); }
-	bool jp(const std::string& label)    { return conditional_jump(label, 0x7a ); }
+	bool jp(code_label& label)    { return conditional_jump(label, 0x7a ); }
 	bool jpe(int32_t offset)   { return conditional_jump(offset, 0x7a ); }
-	bool jpe(const std::string& label)   { return conditional_jump(label, 0x7a ); }
+	bool jpe(code_label& label)   { return conditional_jump(label, 0x7a ); }
 	bool jpo(int32_t offset)   { return conditional_jump(offset, 0x7b ); }
-	bool jpo(const std::string& label)   { return conditional_jump(label, 0x7b ); }
+	bool jpo(code_label& label)   { return conditional_jump(label, 0x7b ); }
 	bool js(int32_t offset)    { return conditional_jump(offset, 0x78 ); }
-	bool js(const std::string& label)    { return conditional_jump(label, 0x78 ); }
+	bool js(code_label& label)    { return conditional_jump(label, 0x78 ); }
 	bool jz(int32_t offset)    { return conditional_jump(offset, 0x74 ); }
-	bool jz(const std::string& label)    { return conditional_jump(label, 0x74 ); }
+	bool jz(code_label& label)    { return conditional_jump(label, 0x74 ); }
 
 	// ----------- nop -----------
 
@@ -414,16 +401,11 @@ public:
 		return true;
 	}
 
-	bool jmp(const std::string& label)	
+	bool jmp(code_label& label)	
 	{
 		push_back(0xe9);
 		push_value<int32_t>(end(), 0);
-
-		code_label_target tgt;
-		tgt.target = size() - 4;
-		tgt.offset = size();
-
-		labels[label].targets.push_back(tgt);
+		label.targets.push_back({size() - 4, size()});
 
 		return true;
 	}

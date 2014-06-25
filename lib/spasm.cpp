@@ -245,6 +245,16 @@ bool sib_specifier::needs_sib() const
 			(offset.index() == 4);
 }
 
+bool sib_specifier::has_label() const
+{
+	return rip_label != nullptr;
+}
+
+code_label& sib_specifier::label() const
+{
+	return *rip_label;
+}
+
 disp_size sib_specifier::displacement_size() const
 {
 	if (displacement == 0)

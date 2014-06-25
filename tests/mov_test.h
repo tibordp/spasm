@@ -19,9 +19,7 @@ void mov_test(ostream& bytes, ostream& instructions)
 		X.clear();
 	};
 
-	// mov rax, rcx
-
-	instruction X, X1, X2, X3;
+	instruction X;
 	
 	for (auto i : cpu_registers::all())
 	for (auto j : cpu_registers::all())
@@ -31,9 +29,6 @@ void mov_test(ostream& bytes, ostream& instructions)
 			print_bytes(X);
 		}
 
-
-	// mov rax, 0x...
-	
 	for (auto i : cpu_registers::all())
 	{
 		int8_t x1 = 0x15; 	
@@ -46,75 +41,69 @@ void mov_test(ostream& bytes, ostream& instructions)
 			instructions << "mov " << i.name << ", 0x" <<  std::hex  << (int)x1 << endl;
 			print_bytes(X);
 		}
-		if (X1.mov<2>(i, x2)) 
+		if (X.mov<2>(i, x2)) 
 		{
 			instructions << "mov " << i.name << ", 0x" <<  std::hex  << x2 << endl;
-			print_bytes(X1);
+			print_bytes(X);
 		}
-		if (X2.mov<4>(i, x3)) 
+		if (X.mov<4>(i, x3)) 
 		{
 			instructions << "mov " << i.name << ", 0x" <<  std::hex  << x3 << endl;
-			print_bytes(X2);
+			print_bytes(X);
 		}
-		if (X3.mov<8>(i, x4)) 
+		if (X.mov<8>(i, x4)) 
 		{
 			instructions << "mov " << i.name << ", 0x" <<  std::hex  << x4 << endl;	
-			print_bytes(X3);
+			print_bytes(X);
 		}
 	}		
 
 	// mov rax, [4*rax + ecx + 0x1337]
 	// mov [4*rax + ecx + 0x1337], rax
 
-	for (auto i : cpu_registers::all())
-	for (auto j : cpu_registers::all())
-	for (auto k : cpu_registers::all())
-	for (int multiplier = 1; multiplier <= 8; multiplier *= 2)
-	for (int32_t displacement : { 0, 0x15, 0x1515 })
+	every_sib_reg([&] (cpu_register i, sib_specifier sib) 
 	{
-		sib_specifier sib({ multiplier, j, k, displacement });
-	
 		if (X.mov(sib, i)) 
 		{
 			instructions << "mov " << sib.to_string() << ", " << i.name << endl;
 			print_bytes(X);
 		}
-		if (X1.mov(i, sib)) 
+		if (X.mov(i, sib)) 
 		{
 			instructions << "mov " << i.name << ", " << sib.to_string() << endl;
-			print_bytes(X1);
+			print_bytes(X);
 		}
-
-	}
+	});
 	
 
 	// mov [4*rax + ecx + 0x1337], 0x....
 
-	for (auto j : cpu_registers::all())
-	for (auto k : cpu_registers::all())
-	for (int multiplier = 1; multiplier <= 8; multiplier *= 2)
-	for (int32_t displacement : { 0, 0x15, 0x1515 })
+	every_sib([&] (sib_specifier sib) 
 	{
-		sib_specifier sib({ multiplier, j, k, displacement });
-
 		int8_t x1 = 0x15;
 		int16_t x2 = 0x1515;
 		int32_t x3 = 0x15151515;
+		int64_t x4 = 0x1515151515151515;
 
 		if (X.mov<1>(sib, x1)) 
 		{
 			instructions << "mov BYTE PTR " << sib.to_string() << ", 0x" <<  std::hex  << (int)x1 << endl;
 			print_bytes(X);
 		}
-		if (X1.mov<2>(sib, x2)) 
+		if (X.mov<2>(sib, x2)) 
 		{
 			instructions << "mov WORD PTR " << sib.to_string() << ", 0x" <<  std::hex  << x2 << endl;
-			print_bytes(X1);
+			print_bytes(X);
 		}
-		if (X2.mov<4>(sib, x3)) 
+		if (X.mov<4>(sib, x3)) 
 		{
 			instructions << "mov DWORD PTR " << sib.to_string() << ", 0x" <<  std::hex  << x3 << endl;
-			print_bytes(X2);
+			print_bytes(X);
 		}
-	}
+		if (X.mov<8>(sib, x4)) 
+		{
+			instructions << "mov QWORD PTR " << sib.to_string() << ", 0x" <<  std::hex  << x4 << endl;
+			print_bytes(X);
+		}		
+	});
 }

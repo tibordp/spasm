@@ -16,7 +16,7 @@ void jcc_test(ostream& bytes, ostream& instructions)
 
 	#define JCC_CASE(op) { &instruction::op , #op }
 
-	initializer_list<pair<decltype(&instruction::jc), string>> cases = {
+	initializer_list<pair<decltype(&instruction::jecxz), string>> cases = {
 		JCC_CASE(ja),
 		JCC_CASE(jae),
 		JCC_CASE(jb),

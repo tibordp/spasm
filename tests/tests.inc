@@ -1,5 +1,38 @@
+template<typename T>
+void every_sib(T callback) {
+	for (auto j : cpu_registers::all())
+	for (auto k : cpu_registers::all())
+	for (int multiplier = 1; multiplier <= 8; multiplier *= 2)
+	for (int32_t displacement : { 0, 0x15, 0x1515 })
+	{
+		sib_specifier sib({ multiplier, j, k, displacement });
+		callback(sib);
+	}
+}
+
+template<typename T>
+void every_sib_reg(T callback) {
+	for (auto i : cpu_registers::all())
+	for (auto j : cpu_registers::all())
+	for (auto k : cpu_registers::all())
+	for (int multiplier = 1; multiplier <= 8; multiplier *= 2)
+	for (int32_t displacement : { 0, 0x15, 0x1515 })
+	{
+		sib_specifier sib({ multiplier, j, k, displacement });
+		callback(i, sib);
+	}
+}
+
+
 #include "tests/mov_test.h"
 #include "tests/executable_test.h"
+
+#ifndef ATTACH_TEST
+#define XATTACH_TEST(name) name##_test 
+#define ATTACH_TEST(name) XATTACH_TEST(name) 
+#define XSTRINGIFY(name) #name
+#define STRINGIFY(name) XSTRINGIFY(name)
+#endif
 
 #define T_COMMON add
 #include "tests/add_etc_test.h"
@@ -78,3 +111,4 @@
 #undef T_COMMON
 
 #include "tests/jcc_test.h"
+#include "tests/various_test.h"

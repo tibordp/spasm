@@ -1,19 +1,6 @@
-/*
-	Exhaustively tests every possible combination of registers (direct, indirect), SIB combinations,
-	displacements and immediate operand sizes for `mov` instruction.
-*/
-
-#ifndef ATTACH_TEST
-#define XATTACH_TEST(name) name##_test 
-#define ATTACH_TEST(name) XATTACH_TEST(name) 
-#define XSTRINGIFY(name) #name
-#define STRINGIFY(name) XSTRINGIFY(name)
-#endif
-
-
 void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 {
-	auto  name = [] {
+	auto name = [] {
 		stringstream ss;
 		for (char i : string(STRINGIFY(T_COMMON)))
 			if (i != '_')
@@ -37,43 +24,37 @@ void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 
 	// mov rax, rcx
 
-	instruction X, X1, X2, X3;
+	instruction X;
 	
 	for (auto i : cpu_registers::all())
 		if (X.T_COMMON(i)) 
 		{
 			instructions << name() << " " << i.name << endl;
 			print_bytes(X);
-		}
-	
+		}	
 
-	for (auto j : cpu_registers::all())
-	for (auto k : cpu_registers::all())
-	for (int multiplier = 1; multiplier <= 8; multiplier *= 2)
-	for (int32_t displacement : { 0, 0x15, 0x1515 })
+	every_sib([&] (sib_specifier sib) 
 	{
-		sib_specifier sib({ multiplier, j, k, displacement });
-
 		if (X.T_COMMON<1>(sib)) 
 		{
 			instructions << name() << " BYTE PTR " << sib.to_string() << endl;
 			print_bytes(X);
 		}
-		if (X1.T_COMMON<2>(sib)) 
+		if (X.T_COMMON<2>(sib)) 
 		{
 			instructions << name() << " WORD PTR " << sib.to_string() << endl;
-			print_bytes(X1);
+			print_bytes(X);
 		}
-		if (X2.T_COMMON<4>(sib)) 
+		if (X.T_COMMON<4>(sib)) 
 		{
 			instructions << name() << " DWORD PTR " << sib.to_string() << endl;
-			print_bytes(X2);
+			print_bytes(X);
 		}
-		if (X2.T_COMMON<8>(sib)) 
+		if (X.T_COMMON<8>(sib)) 
 		{
 			instructions << name() << " QWORD PTR " << sib.to_string() << endl;
-			print_bytes(X2);
+			print_bytes(X);
 		}
-	}
+	});
 
 }

@@ -17,6 +17,7 @@
 */
 
 #pragma once
+#define NOMINMAX
 
 #include <utility>
 

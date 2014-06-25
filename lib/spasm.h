@@ -71,6 +71,7 @@ struct cpu_register {
 	size_t size() const;
 };
 
+
 class cpu_registers {
 	static cpu_registers& instance()
 	{
@@ -157,6 +158,8 @@ public:
 	cpu_register offset;
 	int32_t displacement;
 
+	const std::string rip_label;
+
 	sib_specifier(int32_t displacement_) :
 		multiplier(1), scaled(R::invalid), 
 		offset(R::invalid), displacement(displacement_)
@@ -178,6 +181,22 @@ public:
 	{
 	}
 
+	sib_specifier(const std::string& label) :
+		multiplier(1), scaled(R::invalid),
+		offset(R::rip), displacement(0),
+		rip_label(label)
+	{
+	}
+
+	register_type type() const {
+		if (offset.valid())
+			return offset.type;
+		else
+			return scaled.type;
+	}
+
+	size_t size() const;
+
 	bool needs_sib() const;
 	disp_size displacement_size() const;
 	std::string to_string();
@@ -192,7 +211,7 @@ public:
 	bool sib;
 
 	// Prefices 0x40 - 0x 4f
-	bool rex;
+	bool strict_rex;
 	bool rex_r; bool rex_b;
 	bool rex_x; bool rex_w;
 
@@ -213,8 +232,18 @@ public:
 			| (rex_b ? 0x1 : 0x00);
 	}
 
+	bool rex() const {
+		return strict_rex || rex_r || rex_b || rex_x || rex_w;
+	}
+
 	operator bool() { return valid_; }
 
+
+	// For one-operand instructions
+	mod_rm_specifier(cpu_register rm, size_t size, uint8_t index);
+	mod_rm_specifier(sib_specifier rm, size_t size, uint8_t index);
+
+	// For two-operand instructions
 	mod_rm_specifier(cpu_register reg, cpu_register rm);
 	mod_rm_specifier(cpu_register reg, sib_specifier rm);
 };

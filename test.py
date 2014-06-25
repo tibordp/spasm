@@ -26,7 +26,7 @@ import re
 success = True
 
 print("Running tests...", file = sys.stderr)
-if os.system('bin/release/spasm'):
+if os.system('bin/release/spasm') != 0:
 	success = False
 else:
 	with open("bytes.txt") as bytes, open("instructions.txt") as instructions:

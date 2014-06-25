@@ -12,11 +12,11 @@ SRC_EXT = cpp
 # Path to the source directory, relative to the makefile
 SRC_PATH = .
 # General compiler flags
-COMPILE_FLAGS = -std=c++11 -Wall -Wextra -g
+COMPILE_FLAGS = -std=c++1y -Wall -Wextra -g
 # Additional release-specific flags
 RCOMPILE_FLAGS = -D NDEBUG -O3
 # Additional debug-specific flags
-DCOMPILE_FLAGS = -D DEBUG
+DCOMPILE_FLAGS = -D DEBUG -g
 # Add additional include paths
 INCLUDES = -I $(SRC_PATH)/ 
 # General linker settings

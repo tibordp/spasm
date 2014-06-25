@@ -35,20 +35,20 @@ void instruction::push_prefices (const mod_rm_specifier& mod_rm)
 {
 	if (mod_rm.address_override) push_back(0x67);
 	if (mod_rm.operand_size_override) push_back(0x66);
-	if (mod_rm.rex) push_back(mod_rm.get_rex());
+	if (mod_rm.rex()) push_back(mod_rm.get_rex());
 }
 
-void instruction::push_instruction(const cpu_register& reg, 
+void instruction::push_instruction(size_t size, 
 	const uint8_t value_r8, const uint8_t value_others)
 {
-	switch (reg.type)
+	switch (size)
 	{
-	case register_type::r8:
+	case 1:
 		push_back(value_r8);
 		break;
-	case register_type::r16:
-	case register_type::r32:
-	case register_type::r64:
+	case 2:
+	case 4:
+	case 8:
 		push_back(value_others);
 		break;
 	default:
@@ -67,7 +67,7 @@ bool instruction::direct(const cpu_register& rm, const cpu_register& reg,
 		return false;
 
 	push_prefices (mod_rm);
-	push_instruction(reg, value_r8, value_others);
+	push_instruction(reg.size(), value_r8, value_others);
 	push_back(mod_rm.value);
 
 	return true;
@@ -82,85 +82,87 @@ bool instruction::indirect(const sib_specifier& rm, const cpu_register& reg,
 		return false;
 	
 	push_prefices (mod_rm);
-	push_instruction(reg, value_r8, value_others);
+	push_instruction(reg.size(), value_r8, value_others);
 	push_back(mod_rm.value);
 
 	if (mod_rm.sib) push_back(mod_rm.sib_value);
 	push_displacement(end(), mod_rm.displacement_size, rm.displacement);
 
+	if (!rm.rip_label.empty())
+	{
+		code_label_target tgt;
+		tgt.target = size() - 4;
+		tgt.offset = size();
+
+		labels[rm.rip_label].targets.push_back(tgt);
+	}
+
 	return true;
 }
 
 bool instruction::direct_simple(const cpu_register& rm, 
-	const uint8_t value_r8, const uint8_t value_others, bool add_index, int offset)
+	const uint8_t value_r8, const uint8_t value_others, bool add_index, uint8_t index, bool skip_rexw)
 {
-	cpu_register reg;
-	switch (rm.size())
-	{
-		case 1: reg = R::al; break;
-		case 2: reg = R::ax; break;
-		case 4: reg = R::eax; break;
-		case 8: reg = R::rax; break;
-		default:
-			return false;
-	}
+	mod_rm_specifier mod_rm(rm, rm.size(), index);
 
-	mod_rm_specifier mod_rm(reg, rm);
-
-	if (!valid_register(rm) || !mod_rm)
-		return false;
-
+	if (!mod_rm) return false;
 	mod_rm.rex_r = false; // It is irrelephant
+	if (skip_rexw) mod_rm.rex_w = false;
 
 	push_prefices (mod_rm);
 	
 	if (add_index)
-		push_instruction(rm,  value_r8 + rm.index(), value_others + rm.index());
+		push_instruction(rm.size(),  value_r8 + rm.index(), value_others + rm.index());
 	else
 	{
-		push_instruction(rm,  value_r8, value_others);
-		push_back(mod_rm.value + 8 * offset);
+		push_instruction(rm.size(),  value_r8, value_others);
+		push_back(mod_rm.value);
 	}
 
 	return true;
 }
 
-bool instruction::indirect_simple(const sib_specifier& rm, size_t ptr_size,
-	const uint8_t value_r8, const uint8_t value_others, int offset)
+bool instruction::indirect_nolabel(const sib_specifier& rm, size_t ptr_size,
+	const uint8_t value_r8, const uint8_t value_others, uint8_t index, bool skip_rexw)
 {
-	cpu_register reg;
-	switch (ptr_size)
-	{
-		case 1: reg = R::al; break;
-		case 2: reg = R::ax; break;
-		case 4: reg = R::eax; break;
-		case 8: reg = R::rax; break;
-		default:
-			return false;
-	}
+	mod_rm_specifier mod_rm(rm, ptr_size, index);
 
-	mod_rm_specifier mod_rm(reg, rm);
-
+	if (!mod_rm) return false;
 	mod_rm.rex_r = false; // It is irrelephant
+	if (skip_rexw) mod_rm.rex_w = false;
 
-	if (!valid_register(reg) || !mod_rm )
-		return false;
-
-	push_prefices (mod_rm);
-	push_instruction(reg,  value_r8, value_others);
-	
-	push_back(mod_rm.value + 8 * offset);
+	push_prefices(mod_rm);
+	push_instruction(ptr_size, value_r8, value_others);
+	push_back(mod_rm.value);
 
 	if (mod_rm.sib) push_back(mod_rm.sib_value);
+
 	push_displacement(end(), mod_rm.displacement_size, rm.displacement);
 
 	return true;
 }
 
-bool instruction::direct_immediate(const cpu_register& rm, void* value, size_t size,
-	const uint8_t value_r8, const uint8_t value_others, bool add_index, int offset)
+bool instruction::indirect_simple(const sib_specifier& rm, size_t ptr_size,
+	const uint8_t value_r8, const uint8_t value_others, uint8_t index, bool skip_rexw)
 {
-	bool success = direct_simple(rm, value_r8, value_others, add_index, offset);
+	if (!indirect_nolabel(rm, ptr_size, value_r8, value_others, index, skip_rexw)) return false;
+
+	if (!rm.rip_label.empty())
+	{
+		code_label_target tgt;
+		tgt.target = size() - 4;
+		tgt.offset = size();
+
+		labels[rm.rip_label].targets.push_back(tgt);
+	}
+
+	return true;
+}
+
+bool instruction::direct_immediate(const cpu_register& rm, void* value, size_t size,
+	const uint8_t value_r8, const uint8_t value_others, bool add_index, uint8_t index, bool skip_rexw)
+{
+	bool success = direct_simple(rm, value_r8, value_others, add_index, index, skip_rexw);
 	if (success)
 	{
 		push_data(end(), value, size);
@@ -171,17 +173,24 @@ bool instruction::direct_immediate(const cpu_register& rm, void* value, size_t s
 }
 
 bool instruction::indirect_immediate(const sib_specifier& rm, size_t ptr_size, void* value, size_t size,
-	const uint8_t value_r8, const uint8_t value_others, int offset)
+	const uint8_t value_r8, const uint8_t value_others, uint8_t index, bool skip_rexw)
 {
-	bool success = indirect_simple(rm, ptr_size, value_r8, value_others, offset);
-	if (success)
+	if (!indirect_nolabel(rm, ptr_size, value_r8, value_others, index, skip_rexw)) return false;
+
+	push_data(end(), value, size);
+	
+	if (!rm.rip_label.empty())
 	{
-		push_data(end(), value, size);
-		return true;
+		code_label_target tgt;
+		tgt.target = this->size() - size - 4;
+		tgt.offset = this->size();
+
+		labels[rm.rip_label].targets.push_back(tgt);
 	}
-	else
-		return false;
+
+	return true;
 }
+
 
 bool instruction::conditional_jump(int32_t offset, uint8_t opcode, bool address_override)
 {
@@ -204,5 +213,23 @@ bool instruction::conditional_jump(int32_t offset, uint8_t opcode, bool address_
 	}
 	return true;
 }
+
+bool instruction::conditional_jump(const std::string& label, uint8_t opcode)
+{
+	if (opcode == 0xe3)
+		return false;
+	push_back(0x0f);
+	push_back(opcode + 0x10);
+	push_value<int32_t>(end(), 0);
+	
+	code_label_target tgt;
+	tgt.target = size() - 4;
+	tgt.offset = size();
+
+	labels[label].targets.push_back(tgt);
+
+	return true;
+}
+
 
 }

@@ -36,7 +36,7 @@ void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 
 	// T_COMMON rax, rcx
 
-	instruction X, X1, X2, X3;
+	instruction X;
 	
 	for (auto i : cpu_registers::all())
 	for (auto j : cpu_registers::all())
@@ -60,15 +60,15 @@ void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 			instructions << name() << " " << i.name << ", 0x" <<  std::hex  << (int)x1 << endl;
 			print_bytes(X);
 		}
-		if (X1.T_COMMON<2>(i, x2)) 
+		if (X.T_COMMON<2>(i, x2)) 
 		{
 			instructions << name() << " " << i.name << ", 0x" <<  std::hex  << x2 << endl;
-			print_bytes(X1);
+			print_bytes(X);
 		}
-		if (X2.T_COMMON<4>(i, x3)) 
+		if (X.T_COMMON<4>(i, x3)) 
 		{
 			instructions << name() << " " << i.name << ", 0x" <<  std::hex  << x3 << endl;
-			print_bytes(X2);
+			print_bytes(X);
 		}
 	}		
 
@@ -88,10 +88,10 @@ void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 			instructions << name() << " " << sib.to_string() << ", " << i.name << endl;
 			print_bytes(X);
 		}
-		if (X1.T_COMMON(i, sib)) 
+		if (X.T_COMMON(i, sib)) 
 		{
 			instructions << name() << " " << i.name << ", " << sib.to_string() << endl;
-			print_bytes(X1);
+			print_bytes(X);
 		}
 
 	}
@@ -115,15 +115,15 @@ void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 			instructions << name() << " BYTE PTR " << sib.to_string() << ", 0x" <<  std::hex  << (int)x1 << endl;
 			print_bytes(X);
 		}
-		if (X1.T_COMMON<2>(sib, x2)) 
+		if (X.T_COMMON<2>(sib, x2)) 
 		{
 			instructions << name() << " WORD PTR " << sib.to_string() << ", 0x" <<  std::hex  << x2 << endl;
-			print_bytes(X1);
+			print_bytes(X);
 		}
-		if (X2.T_COMMON<4>(sib, x3)) 
+		if (X.T_COMMON<4>(sib, x3)) 
 		{
 			instructions << name() << " DWORD PTR " << sib.to_string() << ", 0x" <<  std::hex  << x3 << endl;
-			print_bytes(X2);
+			print_bytes(X);
 		}
 	}
 }

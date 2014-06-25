@@ -61,12 +61,14 @@ double time(T callback)
 int main()
 {
 	std::vector<void (*) (ostream&, ostream&)> tests = { 
-		executable_test, 
+	executable_test, 
+		executable_test2, 
+	/*	
 		
 		mov_test,
-		
+		*/
+	/*	add_test,
 		or__test,
-		add_test,
 		adc_test,
 		sbb_test,
 		and__test,
@@ -85,8 +87,9 @@ int main()
 
 		inc_test,
 		dec_test,
-		
 		jcc_test,
+		various_test,*/
+		
 	};
 
 	ofstream instructions("instructions.txt");

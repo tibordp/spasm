@@ -221,6 +221,20 @@ size_t cpu_register::size() const
 	}
 }
 
+size_t sib_specifier::size() const
+{
+	switch (type()) 
+	{
+		case register_type::r8: return 1;
+		case register_type::r16: return 2;
+		case register_type::r32: return 4;
+		case register_type::rip:
+		case register_type::r64: return 8;
+		default:
+			return -1;
+	}
+}
+
 /*
 	needs_sib - returns true iff the Mod/R+M specification
 	needs an additional SIB byte.
@@ -274,7 +288,8 @@ std::string sib_specifier::to_string()
 mod_rm_specifier::mod_rm_specifier(cpu_register reg, cpu_register rm)
 	: valid_(false)
 {
-	if (!reg.valid() || !rm.valid()) return;
+	if (!reg.valid() || !rm.valid() || 
+		(reg == R::rip) || (rm == R::rip)) return;
 
 	// Actual value is the easy part...
 	value = 0xC0 | get_reg_rm(reg, rm);	// mod = 3
@@ -294,10 +309,9 @@ mod_rm_specifier::mod_rm_specifier(cpu_register reg, cpu_register rm)
 	rex_w = (reg.type == register_type::r64)
 		|| (rm.type == register_type::r64);
 
-	rex = reg.always_rex() || rm.always_rex()
-		|| rex_r || rex_b || rex_w;
+	strict_rex = reg.always_rex() || rm.always_rex();
 
-	if (rex && (reg.never_rex() || rm.never_rex()))
+	if (rex() && (reg.never_rex() || rm.never_rex()))
 		return; //throw runtime_error("Cannot use an operand that requires a REX prefix.");
 
 	valid_ = true;
@@ -400,14 +414,41 @@ mod_rm_specifier::mod_rm_specifier(cpu_register reg, sib_specifier rm)
 	rex_r = (reg.rex == rex_attributte::rex);
 	rex_b = (rm.offset.rex == rex_attributte::rex);
 
-	rex = reg.always_rex()
-		|| rex_w || rex_b
-		|| rex_x || rex_r;
+	strict_rex = reg.always_rex();
 
-	if (rex && reg.never_rex())
+	if (rex() && reg.never_rex())
 		return; //throw runtime_error("Cannot use an operand that requires a REX prefix.");
 
 	valid_ = true;
 }
+
+cpu_register get_gp_register(size_t size, uint8_t index)
+{
+	cpu_register reg;
+	
+	if (index >= 8)
+		return R::invalid;
+
+	switch (size)
+	{
+		case 1: reg = R::al; break;
+		case 2: reg = R::ax; break;
+		case 4: reg = R::eax; break;
+		case 8: reg = R::rax; break;
+		default:
+			return R::invalid;		
+	}
+	
+	reg.seq += index;
+	return reg;
+}
+
+mod_rm_specifier::mod_rm_specifier(cpu_register rm, size_t size, uint8_t index) 
+	: mod_rm_specifier(get_gp_register(size, index), rm)
+{ }
+
+mod_rm_specifier::mod_rm_specifier(sib_specifier rm, size_t size, uint8_t index) 
+	: mod_rm_specifier(get_gp_register(size, index), rm)
+{ }
 
 }

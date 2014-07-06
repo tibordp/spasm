@@ -56,9 +56,29 @@ void instruction::push_instruction(size_t size,
 	}
 }
 
+void instruction::push_data(iterator whither, void* value, size_t size)
+{
+	insert(whither, static_cast<uint8_t*>(value), static_cast<uint8_t*>(value) + size);
+}
+
+void instruction::push_displacement(iterator whither, disp_size size, int32_t displacement)
+{
+	switch (size)
+	{
+	case disp_size::d8:
+		push_value(whither, static_cast<int8_t>(displacement));
+		break;
+	case disp_size::d32:
+		push_value(whither, displacement);
+		break;
+	default:
+		break;
+	}
+}
+
 // -------------------------------------------------------------------------------------------------//
 
-bool instruction::direct(const cpu_register& rm, const cpu_register& reg,
+bool instruction::direct_double(const cpu_register& rm, const cpu_register& reg,
 	const uint8_t value_r8, const uint8_t value_others)
 {
 	mod_rm_specifier mod_rm(reg, rm);
@@ -73,7 +93,7 @@ bool instruction::direct(const cpu_register& rm, const cpu_register& reg,
 	return true;
 }
 
-bool instruction::indirect(const sib_specifier& rm, const cpu_register& reg,
+bool instruction::indirect_double(const sib_specifier& rm, const cpu_register& reg,
 	const uint8_t value_r8, const uint8_t value_others)
 {
 	mod_rm_specifier mod_rm(reg, rm);
@@ -173,6 +193,33 @@ bool instruction::indirect_immediate(const sib_specifier& rm, size_t ptr_size, v
 	return true;
 }
 
+bool instruction::nop(size_t size) 
+{
+	// It doesn't really matter, but to keep things 8-byte aligned.
+	
+	while(size > 8)
+	{
+		nop(8);
+		size -= 8;
+	}
+
+	switch (size)
+	{
+	case 1: insert(end(), {0x90}); break;
+	case 2: insert(end(), {0x66, 0x90}); break;
+	case 3: insert(end(), {0x0F, 0x1F, 0x00}); break;
+	case 4: insert(end(), {0x0F, 0x1F, 0x40, 0x00}); break;
+	case 5: insert(end(), {0x0F, 0x1F, 0x44, 0x00, 0x00}); break;
+	case 6: insert(end(), {0x66, 0x0F, 0x1F, 0x44, 0x00, 0x00}); break;
+	case 7: insert(end(), {0x0F, 0x1F, 0x80, 0x00, 0x00, 0x00, 0x00}); break;
+	case 8: insert(end(), {0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}); break;
+	//case 9: insert(end(), {0x66, 0x0F, 0x1F, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00}); break;
+	default:
+		return false;
+	}
+	return true;
+}
+
 
 bool instruction::conditional_jump(int32_t offset, uint8_t opcode, bool address_override)
 {
@@ -208,6 +255,62 @@ bool instruction::conditional_jump(code_label& label, uint8_t opcode)
 
 	return true;
 }
+
+bool instruction::jmp(int32_t offset)
+{
+	if ((offset <= std::numeric_limits<int8_t>::max()) &&
+		(offset >= std::numeric_limits<int8_t>::min()))
+	{
+		push_back(0xeb);
+		push_back(static_cast<int8_t>(offset));
+	}
+	else
+	{
+		push_back(0xe9);
+		push_value<int32_t>(end(), offset);
+	}
+	return true;
+} 
+
+bool instruction::jmp(code_label& label)	
+{
+	push_back(0xe9);
+	push_value<int32_t>(end(), 0);
+	label.targets.push_back({size() - 4, size()});
+
+	return true;
+}
+
+bool instruction::jmp(const cpu_register& rm) 
+{  
+	if (rm.type != register_type::r64 ) return false;
+	return direct_simple(rm, 0xff, 0xff, false, 4, true);
+} 	
+
+bool instruction::jmp(const sib_specifier& rm) 
+{  
+	if ((rm.type() != register_type::r64) && (rm.type() != register_type::rip)) return false;
+	return indirect_simple(rm, 1, 0xff, 0xff, 4, true);
+} 	
+
+bool instruction::call(int32_t offset)
+{
+	push_back(0xe8);
+	push_value<int32_t>(end(), offset);
+	return true;
+}
+
+bool instruction::call(const cpu_register& rm) 
+{  
+	if (rm.type != register_type::r64 ) return false;
+	return direct_simple(rm, 0xff, 0xff, false, 2, true);
+} 	
+
+bool instruction::call(const sib_specifier& rm) 
+{  
+	if ((rm.type() != register_type::r64) &&  (rm.type() != register_type::rip)) return false;
+	return indirect_simple(rm, 1, 0xff, 0xff, 2, true);
+} 
 
 
 }

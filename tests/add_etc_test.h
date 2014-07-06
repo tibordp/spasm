@@ -1,15 +1,3 @@
-/*
-	Exhaustively tests every possible combination of registers (direct, indirect), SIB combinations,
-	displacements and immediate operand sizes for `T_COMMON` instruction.
-*/
-
-#ifndef ATTACH_TEST
-#define XATTACH_TEST(name) name##_test 
-#define ATTACH_TEST(name) XATTACH_TEST(name) 
-#define XSTRINGIFY(name) #name
-#define STRINGIFY(name) XSTRINGIFY(name)
-#endif
-
 void ATTACH_TEST(T_COMMON)(ostream& bytes, ostream& instructions)
 {
 	auto name = [] {

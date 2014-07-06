@@ -1,8 +1,3 @@
-/*
-	Exhaustively tests every possible combination of registers (direct, indirect), SIB combinations,
-	displacements and immediate operand sizes for `mov` instruction.
-*/
-
 void mov_test(ostream& bytes, ostream& instructions)
 {
 	auto print_bytes = [&] (instruction& X) {

@@ -155,8 +155,6 @@ void various_test(ostream& bytes, ostream& instructions)
 			instructions << "lea " << i.name << ", " << sib.to_string() <<  endl;
 			print_bytes(X);
 		}		
-
-
 	});
 
 

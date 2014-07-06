@@ -100,6 +100,37 @@ void every_sib_reg(T callback) {
 #include "tests/sal_etc_test.h"
 #undef T_COMMON
 
+// -------
+
+// Test is special
+// #define T_COMMON test
+// #include "tests/test_etc_test.h"
+// #undef T_COMMON
+
+#define T_COMMON not_
+#include "tests/test_etc_test.h"
+#undef T_COMMON
+
+#define T_COMMON neg
+#include "tests/test_etc_test.h"
+#undef T_COMMON
+
+#define T_COMMON mul
+#include "tests/test_etc_test.h"
+#undef T_COMMON
+
+#define T_COMMON imul
+#include "tests/test_etc_test.h"
+#undef T_COMMON
+
+#define T_COMMON div
+#include "tests/test_etc_test.h"
+#undef T_COMMON
+
+#define T_COMMON idiv
+#include "tests/test_etc_test.h"
+#undef T_COMMON
+
 // ---------
 
 #define T_COMMON inc

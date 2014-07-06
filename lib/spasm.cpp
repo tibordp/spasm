@@ -24,6 +24,9 @@
 namespace spasm {
 
 namespace R {
+	/* Do not use these defines in static/global initialization code,
+	   you are bound to run into problems. */
+	
 	const CR al = CRS::insert({ RT::r8, RA::no_rex, "al", 0 });
 	const CR cl = CRS::insert({ RT::r8, RA::no_rex, "cl", 1 });
 	const CR dl = CRS::insert({ RT::r8, RA::no_rex, "dl", 2 });

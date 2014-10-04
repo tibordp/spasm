@@ -1,4 +1,4 @@
-void mov_test(ostream& bytes, ostream& instructions)
+void sse_test(ostream& bytes, ostream& instructions)
 {
 	auto print_bytes = [&] (instruction& X) {
 		bool first = true;
@@ -18,11 +18,35 @@ void mov_test(ostream& bytes, ostream& instructions)
 	
 	for (auto i : cpu_registers::all())
 	for (auto j : cpu_registers::all())
-		if (X.mov(i, j)) 
+	{
+		if (X.movaps(i, j)) 
 		{
-			instructions << "mov " << i.name << ", " << j.name << endl;
+			instructions << "movaps " << i.name << ", " << j.name << endl;
 			print_bytes(X);
 		}
+		if (X.movapd(i, j)) 
+		{
+			instructions << "movapd " << i.name << ", " << j.name << endl;
+			print_bytes(X);
+		}		
+	}
+
+
+	every_sib_reg([&] (cpu_register i, sib_specifier sib) 
+	{
+		if (X.movaps(sib, i)) 
+		{
+			instructions << "movaps " << sib.to_string() << ", " << i.name << endl;
+			print_bytes(X);
+		}
+		if (X.movaps(i, sib)) 
+		{
+			instructions << "movaps " << i.name << ", " << sib.to_string() << endl;
+			print_bytes(X);
+		}
+	});
+
+	return;
 
 	for (auto i : cpu_registers::all())
 	{
@@ -56,19 +80,6 @@ void mov_test(ostream& bytes, ostream& instructions)
 	// mov rax, [4*rax + ecx + 0x1337]
 	// mov [4*rax + ecx + 0x1337], rax
 
-	every_sib_reg([&] (cpu_register i, sib_specifier sib) 
-	{
-		if (X.mov(sib, i)) 
-		{
-			instructions << "mov " << sib.to_string() << ", " << i.name << endl;
-			print_bytes(X);
-		}
-		if (X.mov(i, sib)) 
-		{
-			instructions << "mov " << i.name << ", " << sib.to_string() << endl;
-			print_bytes(X);
-		}
-	});
 	
 
 	// mov [4*rax + ecx + 0x1337], 0x....
@@ -101,50 +112,4 @@ void mov_test(ostream& bytes, ostream& instructions)
 			print_bytes(X);
 		}		
 	});
-}
-
-void xchg_test(ostream& bytes, ostream& instructions)
-{
-	auto print_bytes = [&] (instruction& X) {
-		bool first = true;
-		for (int i : X)
-		{
-			if (first)
-				first = false;
-			else
-				bytes << " ";
-			bytes << setfill('0') << setw(2) << hex << i;
-		}
-		bytes << endl;
-		X.clear();
-	};
-
-	instruction X;
-	
-	for (auto i : cpu_registers::all())
-	for (auto j : cpu_registers::all())
-		if (X.xchg(i, j)) 
-		{
-			instructions << "xchg " << i.name << ", " << j.name << endl;
-			print_bytes(X);
-		}
-
-
-	// xchg rax, [4*rax + ecx + 0x1337]
-	// xchg [4*rax + ecx + 0x1337], rax
-
-	every_sib_reg([&] (cpu_register i, sib_specifier sib) 
-	{
-		if (X.xchg(sib, i)) 
-		{
-			instructions << "xchg " << sib.to_string() << ", " << i.name << endl;
-			print_bytes(X);
-		}
-		if (X.xchg(i, sib)) 
-		{
-			instructions << "xchg " << i.name << ", " << sib.to_string() << endl;
-			print_bytes(X);
-		}
-	});
-
 }

@@ -23,14 +23,6 @@
 namespace spasm 
 {
 
-bool valid_register(const cpu_register& reg)
-{
-	return (reg.type == register_type::r64) 
-		|| (reg.type == register_type::r8)
-		|| (reg.type == register_type::r32) 
-		|| (reg.type == register_type::r16) ;
-}
-
 void instruction::push_prefices (const mod_rm_specifier& mod_rm)
 {
 	if (mod_rm.address_override) push_back(0x67);
@@ -78,8 +70,65 @@ void instruction::push_displacement(iterator whither, disp_size size, int32_t di
 
 // -------------------------------------------------------------------------------------------------//
 
-bool instruction::direct_double(const cpu_register& rm, const cpu_register& reg,
-	const uint8_t value_r8, const uint8_t value_others)
+
+bool instruction::direct_double_xmm(
+	const cpu_register& rm, 
+	const cpu_register& reg,
+	const uint8_t opcode,
+	bool add_prexix,
+	const uint8_t prefix
+)
+{
+	mod_rm_specifier mod_rm(reg, rm);
+
+	if ((reg.type != register_type::xmm) || (reg.type != rm.type) || !mod_rm)
+		return false;
+
+	if (mod_rm.address_override) push_back(0x67);
+	if (add_prexix) push_back(prefix);
+	if (mod_rm.rex()) push_back(mod_rm.get_rex());
+	push_back(0x0f); 
+	push_back(opcode);
+	push_back(mod_rm.value);
+
+	return true;
+}
+
+
+bool instruction::indirect_double_xmm(
+	const sib_specifier& rm, 
+	const cpu_register& reg,
+	const uint8_t opcode,
+	bool add_prexix,
+	const uint8_t prefix
+)
+{
+	mod_rm_specifier mod_rm(reg, rm);
+	
+	if (!mod_rm || (reg.type != register_type::xmm))
+		return false;
+	
+	if (mod_rm.address_override) push_back(0x67);
+	if (add_prexix) push_back(prefix);
+	if (mod_rm.rex()) push_back(mod_rm.get_rex());
+	push_back(0x0f); 
+	push_back(opcode);
+	push_back(mod_rm.value);
+
+	if (mod_rm.sib) push_back(mod_rm.sib_value);
+	push_displacement(end(), mod_rm.displacement_size, rm.displacement);
+
+	if (rm.has_label())
+		rm.label().targets.push_back({this->size() - 4, this->size()});
+
+	return true;
+}
+
+bool instruction::direct_double(
+	const cpu_register& rm, 
+	const cpu_register& reg,
+	const uint8_t value_r8, 
+	const uint8_t value_others)
 {
 	mod_rm_specifier mod_rm(reg, rm);
 
@@ -93,8 +142,12 @@ bool instruction::direct_double(const cpu_register& rm, const cpu_register& reg,
 	return true;
 }
 
-bool instruction::indirect_double(const sib_specifier& rm, const cpu_register& reg,
-	const uint8_t value_r8, const uint8_t value_others)
+bool instruction::indirect_double(
+	const sib_specifier& rm, 
+	const cpu_register& reg,
+	const uint8_t value_r8, 
+	const uint8_t value_others
+)
 {
 	mod_rm_specifier mod_rm(reg, rm);
 	
@@ -114,8 +167,14 @@ bool instruction::indirect_double(const sib_specifier& rm, const cpu_register& r
 	return true;
 }
 
-bool instruction::direct_simple(const cpu_register& rm, 
-	const uint8_t value_r8, const uint8_t value_others, bool add_index, uint8_t index, bool skip_rexw)
+bool instruction::direct_simple(
+	const cpu_register& rm, 
+	const uint8_t value_r8, 
+	const uint8_t value_others, 
+	bool add_index, 
+	uint8_t index, 
+	bool skip_rexw
+)
 {
 	mod_rm_specifier mod_rm(rm, rm.size(), index);
 
@@ -136,8 +195,14 @@ bool instruction::direct_simple(const cpu_register& rm,
 	return true;
 }
 
-bool instruction::indirect_nolabel(const sib_specifier& rm, size_t ptr_size,
-	const uint8_t value_r8, const uint8_t value_others, uint8_t index, bool skip_rexw)
+bool instruction::indirect_nolabel(
+	const sib_specifier& rm, 
+	size_t ptr_size,
+	const uint8_t value_r8, 
+	const uint8_t value_others, 
+	uint8_t index, 
+	bool skip_rexw
+)
 {
 	mod_rm_specifier mod_rm(rm, ptr_size, index);
 
@@ -156,8 +221,14 @@ bool instruction::indirect_nolabel(const sib_specifier& rm, size_t ptr_size,
 	return true;
 }
 
-bool instruction::indirect_simple(const sib_specifier& rm, size_t ptr_size,
-	const uint8_t value_r8, const uint8_t value_others, uint8_t index, bool skip_rexw)
+bool instruction::indirect_simple(
+	const sib_specifier& rm,
+	size_t ptr_size,
+	const uint8_t value_r8,
+	const uint8_t value_others,
+	uint8_t index, 
+	bool skip_rexw
+)
 {
 	if (!indirect_nolabel(rm, ptr_size, value_r8, value_others, index, skip_rexw)) return false;
 
@@ -167,8 +238,15 @@ bool instruction::indirect_simple(const sib_specifier& rm, size_t ptr_size,
 	return true;
 }
 
-bool instruction::direct_immediate(const cpu_register& rm, void* value, size_t size,
-	const uint8_t value_r8, const uint8_t value_others, bool add_index, uint8_t index, bool skip_rexw)
+bool instruction::direct_immediate(
+	const cpu_register& rm,
+	void* value, size_t size,
+	const uint8_t value_r8, 
+	const uint8_t value_others, 
+	bool add_index, 
+	uint8_t index, 
+	bool skip_rexw
+)
 {
 	bool success = direct_simple(rm, value_r8, value_others, add_index, index, skip_rexw);
 	if (success)
@@ -312,5 +390,47 @@ bool instruction::call(const sib_specifier& rm)
 	return indirect_simple(rm, 1, 0xff, 0xff, 2, true);
 } 
 
+bool instruction::xchg(const cpu_register& rm, const cpu_register& reg)  { 
+		mod_rm_specifier mod_rm(reg, rm);
+
+		if (!valid_register(reg) || (reg.type != rm.type) || !mod_rm)
+			return false;
+
+		// A lot of work to make it behave like GAS...
+		
+		if ((rm == reg) && (rm != R::ax))
+		{
+			if (rm == R::rax)
+				push_back(0x90); // nop
+			else
+			{
+				push_prefices (mod_rm);
+				push_instruction(reg.size(), 0x86, 0x87);
+				push_back(mod_rm.value);
+			}
+		}
+		else if ((rm == R::rax) || (rm == R::eax) || (rm == R::ax))
+		{
+			mod_rm.rex_b = mod_rm.rex_r; // It is irrelephant
+			mod_rm.rex_r = false; // It is irrelephant
+			push_prefices (mod_rm);	
+			push_back(0x90 + reg.index());
+		}
+		else if ((reg == R::rax) || (reg == R::eax) || (reg == R::ax))
+		{
+			// mod_rm.rex_b = mod_rm.rex_r; // It is irrelephant
+			mod_rm.rex_r = false; // It is irrelephant
+			push_prefices (mod_rm);
+			push_back(0x90 + rm.index());
+		}
+		else
+		{
+			push_prefices (mod_rm);
+			push_instruction(reg.size(), 0x86, 0x87);
+			push_back(mod_rm.value);
+		}
+
+		return true;
+	}
 
 }

@@ -59,6 +59,7 @@ x_function<void(int)> sloncki()
 		code.mov(R::r13, R::rcx);        // Save the parameter to be reused
 		code.xor_(R::r12, R::r12);       // Set r12 to 0
 
+	code.align(0x10);
 	code.label(loop);
 		code.mov(R::rcx, { format });  // The first parameter is the format string	
 		code.mov(R::rdx, R::r12);		 // Copy the first parameter to second parameter
@@ -78,6 +79,7 @@ x_function<void(int)> sloncki()
 
 	return code.compile<void(int)>(start);
 }
+
 
 void executable_test2(ostream& bytes, ostream& instructions)
 {

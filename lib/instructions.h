@@ -31,6 +31,13 @@ namespace spasm {
 	data. 
 */
 
+static bool valid_register(const cpu_register& reg)
+{
+	return (reg.type == register_type::r64) 
+		|| (reg.type == register_type::r8)
+		|| (reg.type == register_type::r32) 
+		|| (reg.type == register_type::r16) ;
+}
 
 class instruction : public std::vector<uint8_t> {
 private:
@@ -65,6 +72,22 @@ private:
 
 	bool indirect_immediate(const sib_specifier& rm, size_t ptr_size, void* value, size_t size,
 		const uint8_t value_r8, const uint8_t value_others, uint8_t index, bool skip_rexw = false);
+
+	bool direct_double_xmm(
+		const cpu_register& rm, 
+		const cpu_register& reg,
+		const uint8_t opcode,
+		bool add_prexix,
+		const uint8_t prefix
+	);
+
+	bool indirect_double_xmm(
+		const sib_specifier& rm, 
+		const cpu_register& reg,
+		const uint8_t opcode,
+		bool add_prexix,
+		const uint8_t prefix
+	);
 
 	template<size_t size, typename T>
 	bool handle_add_etc(const cpu_register& reg, T value, uint8_t index) 
@@ -119,6 +142,20 @@ public:
 	}
 
 	void label(code_label& label) {
+		label.valid = true;
+		label.where = size();
+		labels.push_back(&label);
+	}
+
+	bool align(size_t alignment = 16) 
+	{
+		int offset = size() % alignment;
+		return (offset == 0) ? true : nop(alignment - offset);
+	}
+
+	void aligned_label(code_label& label, size_t alignment = 16) {
+		align(alignment);
+
 		label.valid = true;
 		label.where = size();
 		labels.push_back(&label);
@@ -278,6 +315,8 @@ public:
 	bool cld() { push_back(0xfc); return true; } 
 	bool std() { push_back(0xfd); return true; } 
 
+	bool lock() { push_back(0xf0); return true; }
+
 	// ------------- push, pull --------------
 
 	bool push(const cpu_register& rm) 
@@ -320,12 +359,13 @@ public:
 	 	return true;
 	 }
 
-	 // ------------- jmp, call --------------
+	// ------------- jmp, call --------------
 
 	bool jmp(int32_t offset);
 	bool jmp(code_label& label);
 	bool jmp(const cpu_register& rm);
 	bool jmp(const sib_specifier& rm);
+
 	bool call(int32_t offset);
 	bool call(const cpu_register& rm); 
 	bool call(const sib_specifier& rm);
@@ -373,7 +413,111 @@ public:
 	SPASM_DEF_TEST_ETC(imul, 5)
 	SPASM_DEF_TEST_ETC(div, 6)
 	SPASM_DEF_TEST_ETC(idiv, 7)
-};
 
+	// ----------------- xchg ----------------
+
+	bool xchg(const cpu_register& rm, const cpu_register& reg);
+	bool xchg(const sib_specifier& rm, const cpu_register& reg) { return indirect_double(rm, reg, 0x86, 0x87); }
+	bool xchg(const cpu_register& reg, const sib_specifier& rm) { return indirect_double(rm, reg, 0x86, 0x87); }
+
+	// ----------------- sse instructions ----------------	
+
+	bool movaps(const cpu_register& rm, const cpu_register& reg) { return direct_double_xmm(reg, rm, 0x28, false, 0x00); }
+	bool movapd(const cpu_register& rm, const cpu_register& reg) { return direct_double_xmm(reg, rm, 0x28, true, 0x66); }
+
+	bool movaps(const sib_specifier& rm, const cpu_register& reg) { return indirect_double_xmm(rm, reg, 0x29, false, 0x00); }
+	bool movapd(const sib_specifier& rm, const cpu_register& reg) { return indirect_double_xmm(rm, reg, 0x29, true, 0x66); }	
+
+	bool movaps(const cpu_register& reg, const sib_specifier& rm) { return indirect_double_xmm(rm, reg, 0x28, false, 0x00); }
+	bool movapd(const cpu_register& reg, const sib_specifier& rm) { return indirect_double_xmm(rm, reg, 0x28, true, 0x66); }		
+
+	#define SPASM_DEF_XMM(op_code, name) \
+		bool name(const cpu_register& rm, const cpu_register& reg) { return direct_double_xmm(reg, rm, op_code, false, 0x00); }\
+		bool name(const cpu_register& reg, const sib_specifier& rm) { return indirect_double_xmm(rm, reg, op_code, false, 0x00); }
+
+	#define SPASM_DEF_XMM_PREFIX(op_code, name, prefix) \
+		bool name(const cpu_register& rm, const cpu_register& reg) { return direct_double_xmm(reg, rm, op_code, true, prefix); }\
+		bool name(const cpu_register& reg, const sib_specifier& rm) { return indirect_double_xmm(rm, reg, op_code, true, prefix); }	
+
+	SPASM_DEF_XMM(0x51, sqrtps  ) SPASM_DEF_XMM_PREFIX(0x51, sqrtpd,   0x66) SPASM_DEF_XMM_PREFIX(0x51, sqrtsd,    0xF2) SPASM_DEF_XMM_PREFIX(0x51, sqrtss,    0xF3)
+	SPASM_DEF_XMM(0x52, rsqrtps )                                                                                        SPASM_DEF_XMM_PREFIX(0x52, rsqrtss,   0xF3)
+	SPASM_DEF_XMM(0x53, rcpps   )                                                                                        SPASM_DEF_XMM_PREFIX(0x53, rcpss,     0xF3)
+	SPASM_DEF_XMM(0x54, andps   ) SPASM_DEF_XMM_PREFIX(0x54, andpd,    0x66)
+	SPASM_DEF_XMM(0x55, andnps  ) SPASM_DEF_XMM_PREFIX(0x55, andnpd,   0x66)
+	SPASM_DEF_XMM(0x56, orps    ) SPASM_DEF_XMM_PREFIX(0x56, orpd,     0x66)
+	SPASM_DEF_XMM(0x57, xorps   ) SPASM_DEF_XMM_PREFIX(0x57, xorpd,    0x66)
+	SPASM_DEF_XMM(0x58, addps   ) SPASM_DEF_XMM_PREFIX(0x58, addpd,    0x66) SPASM_DEF_XMM_PREFIX(0x58, addsd,     0xF2) SPASM_DEF_XMM_PREFIX(0x58, addss,     0xF3)
+	SPASM_DEF_XMM(0x59, mulps   ) SPASM_DEF_XMM_PREFIX(0x59, mulpd,    0x66) SPASM_DEF_XMM_PREFIX(0x59, mulsd,     0xF2) SPASM_DEF_XMM_PREFIX(0x59, mulss,     0xF3)
+	SPASM_DEF_XMM(0x5a, cvtps2pd) SPASM_DEF_XMM_PREFIX(0x5a, cvtpd2ps, 0x66) SPASM_DEF_XMM_PREFIX(0x5A, cvtsd2ss,  0xF2) SPASM_DEF_XMM_PREFIX(0x5A, cvtss2sd,  0xF3)
+	SPASM_DEF_XMM(0x5b, cvtdq2ps) SPASM_DEF_XMM_PREFIX(0x5b, cvtps2dq, 0x66)                                             SPASM_DEF_XMM_PREFIX(0x5B, cvttps2dq, 0xF3)
+	SPASM_DEF_XMM(0x5c, subps   ) SPASM_DEF_XMM_PREFIX(0x5c, subpd,    0x66) SPASM_DEF_XMM_PREFIX(0x5C, subsd,     0xF2) SPASM_DEF_XMM_PREFIX(0x5C, subss,     0xF3)
+	SPASM_DEF_XMM(0x5d, minps   ) SPASM_DEF_XMM_PREFIX(0x5d, minpd,    0x66) SPASM_DEF_XMM_PREFIX(0x5D, minsd,     0xF2) SPASM_DEF_XMM_PREFIX(0x5D, minss,     0xF3)
+	SPASM_DEF_XMM(0x5e, divps   ) SPASM_DEF_XMM_PREFIX(0x5e, divpd,    0x66) SPASM_DEF_XMM_PREFIX(0x5E, divsd,     0xF2) SPASM_DEF_XMM_PREFIX(0x5E, divss,     0xF3)
+	SPASM_DEF_XMM(0x5f, maxps   ) SPASM_DEF_XMM_PREFIX(0x5f, maxpd,    0x66) SPASM_DEF_XMM_PREFIX(0x5F, maxsd,     0xF2) SPASM_DEF_XMM_PREFIX(0x5F, maxss,     0xF3)
+
+	SPASM_DEF_XMM_PREFIX(0x60, punpcklbw,  0x66)
+	SPASM_DEF_XMM_PREFIX(0x61, punpcklwd,  0x66)
+	SPASM_DEF_XMM_PREFIX(0x62, punpckldq,  0x66)
+	SPASM_DEF_XMM_PREFIX(0x63, packsswb,   0x66)
+	SPASM_DEF_XMM_PREFIX(0x64, pcmpgtb,    0x66)
+	SPASM_DEF_XMM_PREFIX(0x65, pcmpgtw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0x66, pcmpgtd,    0x66)
+	SPASM_DEF_XMM_PREFIX(0x67, packuswb,   0x66)
+	SPASM_DEF_XMM_PREFIX(0x68, punpckhbw,  0x66)
+	SPASM_DEF_XMM_PREFIX(0x69, punpckhwd,  0x66)
+	SPASM_DEF_XMM_PREFIX(0x6a, punpckhdq,  0x66)
+	SPASM_DEF_XMM_PREFIX(0x6b, packssdw,   0x66)
+    SPASM_DEF_XMM_PREFIX(0x6c, punpcklqdq, 0x66)
+    SPASM_DEF_XMM_PREFIX(0x6d, punpckhqdq, 0x66)
+    
+	SPASM_DEF_XMM_PREFIX(0x7C, haddpd,    0x66)
+	SPASM_DEF_XMM_PREFIX(0x7C, haddps,    0xF2)
+	SPASM_DEF_XMM_PREFIX(0x7D, hsubpd,    0x66)
+	SPASM_DEF_XMM_PREFIX(0x7D, hsubps,    0xF2)
+
+	SPASM_DEF_XMM_PREFIX(0xD0, addsubpd,  0x66) SPASM_DEF_XMM_PREFIX(0xD0, addsubps, 0xF2)
+	SPASM_DEF_XMM_PREFIX(0xD1, psrlw,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xD2, psrld,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xD3, psrlq,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xD4, paddq,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xD5, pmullw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xD8, psubusb,   0x66)
+	SPASM_DEF_XMM_PREFIX(0xD9, psubusw,   0x66)
+	SPASM_DEF_XMM_PREFIX(0xDA, pminub,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xDB, pand,      0x66)
+	SPASM_DEF_XMM_PREFIX(0xDC, paddusb,   0x66)
+	SPASM_DEF_XMM_PREFIX(0xDD, paddusw,   0x66)
+	SPASM_DEF_XMM_PREFIX(0xDE, pmaxub,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xDF, pandn,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xE0, pavgb,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xE1, psraw,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xE2, psrad,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xE3, pavgw,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xE4, pmulhuw,   0x66)
+	SPASM_DEF_XMM_PREFIX(0xE5, pmulhw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xE6, cvttpd2dq, 0x66) SPASM_DEF_XMM_PREFIX(0xE6, cvtpd2dq, 0xF2) SPASM_DEF_XMM_PREFIX(0xE6, cvtdq2pd, 0xF3)
+	SPASM_DEF_XMM_PREFIX(0xE8, psubsb,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xE9, psubsw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xEA, pminsw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xEB, por,       0x66)
+	SPASM_DEF_XMM_PREFIX(0xEC, paddsb,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xED, paddsw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xEE, pmaxsw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xEF, pxor,      0x66)
+	SPASM_DEF_XMM_PREFIX(0xF1, psllw,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xF2, pslld,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xF3, psllq,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xF4, pmuludq,   0x66)
+	SPASM_DEF_XMM_PREFIX(0xF5, pmaddwd,   0x66)
+	SPASM_DEF_XMM_PREFIX(0xF6, psadbw,    0x66)
+	SPASM_DEF_XMM_PREFIX(0xF8, psubb,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xF9, psubw,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xFA, psubd,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xFB, psubq,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xFC, paddb,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xFD, paddw,     0x66)
+	SPASM_DEF_XMM_PREFIX(0xFE, paddd,     0x66)
+
+};
 
 }
